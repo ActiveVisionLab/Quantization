@@ -5,7 +5,8 @@ import torch
 from tqdm import tqdm
 
 def main():
-    model = CNN10()
+    model = CNN10(None)
+    #model = CNN10([6, 6, 5, 5, 4, 3, 2, 2, 1, 1])
     model.train()
 
     transform_train = transforms.Compose([

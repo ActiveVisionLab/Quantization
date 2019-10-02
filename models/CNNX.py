@@ -1,38 +1,50 @@
 from DSConv.nn.DSConv2d import DSConv2d
 from DSConv.nn.Activation import BFPActivation
+from DSConv.nn.QuantizedModule import QuantizedModule
 import torch
 import torch.nn.functional as F
 
-class CNN10(torch.nn.Module):
-    def __init__(self):
-        super(CNN10, self).__init__()
-        bit = 2
+class CNN10(QuantizedModule):
+    number_bits = 10
 
+    def __init__(self, bits):
+        super(CNN10, self).__init__(bits, self.number_bits)
+
+        bit = self.bits.pop(0)
         self.conv1 = DSConv2d(3, 64, (3, 3), block_size=32, bit=bit, padding=1)
+        bit = self.bits.pop(0)
         self.activation1 = BFPActivation(bit, 7, 32)
         self.bn1 = torch.nn.BatchNorm2d(64)
         self.conv2 = DSConv2d(64, 64, (3, 3), block_size=32, bit=bit, padding=1)
+        bit = self.bits.pop(0)
         self.activation2 = BFPActivation(bit, 7, 32)
         self.bn2 = torch.nn.BatchNorm2d(64)
         self.conv3 = DSConv2d(64, 64, (3, 3), block_size=32, bit=bit, padding=1)
+        bit = self.bits.pop(0)
         self.activation3 = BFPActivation(bit, 7, 32)
         self.bn3 = torch.nn.BatchNorm2d(64)
         self.conv4 = DSConv2d(64, 128, (3, 3), block_size=32, bit=bit, padding=1)
+        bit = self.bits.pop(0)
         self.activation4 = BFPActivation(bit, 7, 32)
         self.bn4 = torch.nn.BatchNorm2d(128)
         self.conv5 = DSConv2d(128, 128, (3, 3), block_size=32, bit=bit, padding=1)
+        bit = self.bits.pop(0)
         self.activation5 = BFPActivation(bit, 7, 32)
         self.bn5 = torch.nn.BatchNorm2d(128)
         self.conv6 = DSConv2d(128, 128, (3, 3), block_size=32, bit=bit, padding=1)
+        bit = self.bits.pop(0)
         self.activation6 = BFPActivation(bit, 7, 32)
         self.bn6 = torch.nn.BatchNorm2d(128)
         self.conv7 = DSConv2d(128, 256, (3, 3), block_size=32, bit=bit, padding=1)
+        bit = self.bits.pop(0)
         self.activation7 = BFPActivation(bit, 7, 32)
         self.bn7 = torch.nn.BatchNorm2d(256)
         self.conv8 = DSConv2d(256, 256, (3, 3), block_size=32, bit=bit, padding=1)
+        bit = self.bits.pop(0)
         self.activation8 = BFPActivation(bit, 7, 32)
         self.bn8 = torch.nn.BatchNorm2d(256)
         self.conv9 = DSConv2d(256, 512, (3, 3), block_size=32, bit=bit, padding=1)
+        bit = self.bits.pop(0)
         self.activation9 = BFPActivation(bit, 7, 32)
         self.bn9 = torch.nn.BatchNorm2d(512)
         self.conv10 = DSConv2d(512, 512, (3, 3), block_size=32, bit=bit, padding=1)
@@ -45,17 +57,17 @@ class CNN10(torch.nn.Module):
 
         self.linear = torch.nn.Linear(512, 10)
 
-    def quantize(self):
-        self.conv1.quantize()
-        self.conv2.quantize()
-        self.conv3.quantize()
-        self.conv4.quantize()
-        self.conv5.quantize()
-        self.conv6.quantize()
-        self.conv7.quantize()
-        self.conv8.quantize()
-        self.conv9.quantize()
-        self.conv10.quantize()
+    #def quantize(self):
+    #    self.conv1.quantize()
+    #    self.conv2.quantize()
+    #    self.conv3.quantize()
+    #    self.conv4.quantize()
+    #    self.conv5.quantize()
+    #    self.conv6.quantize()
+    #    self.conv7.quantize()
+    #    self.conv8.quantize()
+    #    self.conv9.quantize()
+    #    self.conv10.quantize()
 
     def forward(self, x):
         x = F.relu(self.activation1(self.bn1(self.conv1(x))))

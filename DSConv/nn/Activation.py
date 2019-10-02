@@ -13,8 +13,9 @@ class BFPActivation(nn.Module):
         self.blk = blk
         self.max = 2**(self.e-1)-1
         self.min = -2**(self.e-1)
-        self.min_m = -(2**self.m)+1
-        self.max_m = (2**self.m)-1
+        if self.m is not None:
+            self.min_m = -(2**self.m)+1
+            self.max_m = (2**self.m)-1
 
         self.__quantize__ = BFPQuant.apply
 
@@ -23,6 +24,10 @@ class BFPActivation(nn.Module):
         return s.format(**self.__dict__)
 
     def forward(self, inp):
+        # if bit is None, then use FP32
+        if self.m is None:
+            return inp
+
         shp = inp.shape
         number_of_blocks = math.ceil(shp[1]/self.blk)
         pad_val = 0

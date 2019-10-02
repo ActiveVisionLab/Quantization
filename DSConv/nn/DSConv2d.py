@@ -25,9 +25,12 @@ class DSConv2d(_ConvNd):
                                        dilation, False, _pair(0), groups, bias, padding_mode)
         self.nmb_blk = math.ceil(((in_channels)/(block_size*groups)))
         self.blk = block_size
+
+        # If bit is None, then the layer should be FP32
         self.bit = bit
-        self.minV = -1*pow(2, bit-1)
-        self.maxV = pow(2, bit-1)-1
+        if bit is not None:
+            self.minV = -1*pow(2, bit-1)
+            self.maxV = pow(2, bit-1)-1
 
         self.alpha = torch.Tensor(out_channels, self.nmb_blk, *kernel_size)
         self.intw = torch.Tensor(self.weight.size())

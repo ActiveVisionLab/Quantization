@@ -34,14 +34,19 @@ class DSConvQuant(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, weight, block_size, bit, number_blocks):
-        blk = block_size
-        minV = -1*pow(2, bit-1)
-        maxV = pow(2, bit-1)-1
-
         shp = weight.shape
         tensor = weight.data.clone()
         intw = torch.Tensor(shp)
         alpha = torch.Tensor(shp[0], number_blocks, shp[2], shp[3])
+
+        # Use FP32 value aka weight in case bit is None
+        if bit is None:
+            return tensor, intw, alpha
+
+        blk = block_size
+        minV = -1*pow(2, bit-1)
+        maxV = pow(2, bit-1)-1
+
 
         for i in range(number_blocks):
             if i == number_blocks-1:
