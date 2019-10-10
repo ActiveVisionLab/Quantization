@@ -4,87 +4,65 @@ from DSConv.nn.QuantizedModule import QuantizedModule
 import torch
 import torch.nn.functional as F
 
-class CNN10(QuantizedModule):
-    number_bits = 10
+class BaseConv(torch.nn.Module):
+    def __init__(self, in_planes, out_planes, kernel, block_size, bit, **kwargs):
+        super(BaseConv, self).__init__()
+        self.activation = BFPActivation(bit, 7, block_size)
+        self.conv = DSConv2d(in_planes, out_planes, kernel, block_size, bit, **kwargs)
+        self.bn = torch.nn.BatchNorm2d(out_planes)
+
+    def forward(self, x):
+        return F.relu(self.bn(self.conv(self.activation(x))))
+
+
+class CNNX(QuantizedModule):
 
     def __init__(self, bits):
-        super(CNN10, self).__init__(bits, self.number_bits)
+        super(CNNX, self).__init__(bits, self.number_bits)
+        self.block_size=32
 
         bit = self.bits.pop(0)
         self.conv1 = DSConv2d(3, 64, (3, 3), block_size=32, bit=bit, padding=1)
-        bit = self.bits.pop(0)
-        self.activation1 = BFPActivation(bit, 7, 32)
         self.bn1 = torch.nn.BatchNorm2d(64)
-        self.conv2 = DSConv2d(64, 64, (3, 3), block_size=32, bit=bit, padding=1)
-        bit = self.bits.pop(0)
-        self.activation2 = BFPActivation(bit, 7, 32)
-        self.bn2 = torch.nn.BatchNorm2d(64)
-        self.conv3 = DSConv2d(64, 64, (3, 3), block_size=32, bit=bit, padding=1)
-        bit = self.bits.pop(0)
-        self.activation3 = BFPActivation(bit, 7, 32)
-        self.bn3 = torch.nn.BatchNorm2d(64)
-        self.conv4 = DSConv2d(64, 128, (3, 3), block_size=32, bit=bit, padding=1)
-        bit = self.bits.pop(0)
-        self.activation4 = BFPActivation(bit, 7, 32)
-        self.bn4 = torch.nn.BatchNorm2d(128)
-        self.conv5 = DSConv2d(128, 128, (3, 3), block_size=32, bit=bit, padding=1)
-        bit = self.bits.pop(0)
-        self.activation5 = BFPActivation(bit, 7, 32)
-        self.bn5 = torch.nn.BatchNorm2d(128)
-        self.conv6 = DSConv2d(128, 128, (3, 3), block_size=32, bit=bit, padding=1)
-        bit = self.bits.pop(0)
-        self.activation6 = BFPActivation(bit, 7, 32)
-        self.bn6 = torch.nn.BatchNorm2d(128)
-        self.conv7 = DSConv2d(128, 256, (3, 3), block_size=32, bit=bit, padding=1)
-        bit = self.bits.pop(0)
-        self.activation7 = BFPActivation(bit, 7, 32)
-        self.bn7 = torch.nn.BatchNorm2d(256)
-        self.conv8 = DSConv2d(256, 256, (3, 3), block_size=32, bit=bit, padding=1)
-        bit = self.bits.pop(0)
-        self.activation8 = BFPActivation(bit, 7, 32)
-        self.bn8 = torch.nn.BatchNorm2d(256)
-        self.conv9 = DSConv2d(256, 512, (3, 3), block_size=32, bit=bit, padding=1)
-        bit = self.bits.pop(0)
-        self.activation9 = BFPActivation(bit, 7, 32)
-        self.bn9 = torch.nn.BatchNorm2d(512)
-        self.conv10 = DSConv2d(512, 512, (3, 3), block_size=32, bit=bit, padding=1)
-        self.activation10 = BFPActivation(bit, 7, 32)
-        self.bn10 = torch.nn.BatchNorm2d(512)
 
+        self.features1, outch  = self.make_layers(64, 3)
         self.max_pool1 = torch.nn.MaxPool2d(2, stride=2)
+
+        self.features2, outch = self.make_layers(outch, 3)
         self.max_pool2 = torch.nn.MaxPool2d(2, stride=2)
+
+        self.features3, outch = self.make_layers(outch, 3)
         self.avg_pool = torch.nn.AvgPool2d(8)
 
-        self.linear = torch.nn.Linear(512, 10)
+        self.linear = torch.nn.Linear(outch, 10)
 
-    #def quantize(self):
-    #    self.conv1.quantize()
-    #    self.conv2.quantize()
-    #    self.conv3.quantize()
-    #    self.conv4.quantize()
-    #    self.conv5.quantize()
-    #    self.conv6.quantize()
-    #    self.conv7.quantize()
-    #    self.conv8.quantize()
-    #    self.conv9.quantize()
-    #    self.conv10.quantize()
+    def make_layers(self, initial_channel, expansion):
+        number_layers = int((self.number_bits-1)/3)
+        layers = []
+        for i in range(number_layers):
+            inch = initial_channel*(2**(i//expansion))
+            outch = initial_channel*(2**((i+1)//expansion))
+            bit = self.bits.pop(0)
+            layers.append(BaseConv(inch, outch, (3, 3), self.block_size, bit, padding=1))
+
+        return torch.nn.Sequential(*layers), outch
 
     def forward(self, x):
-        x = F.relu(self.activation1(self.bn1(self.conv1(x))))
-        x = F.relu(self.activation2(self.bn2(self.conv2(x))))
-        x = F.relu(self.activation3(self.bn3(self.conv3(x))))
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = self.features1(x)
         x = self.max_pool1(x)
-        x = F.relu(self.activation4(self.bn4(self.conv4(x))))
-        x = F.relu(self.activation5(self.bn5(self.conv5(x))))
-        x = F.relu(self.activation6(self.bn6(self.conv6(x))))
+        x = self.features2(x)
         x = self.max_pool2(x)
-        x = F.relu(self.activation7(self.bn7(self.conv7(x))))
-        x = F.relu(self.activation8(self.bn8(self.conv8(x))))
-        x = F.relu(self.activation9(self.bn9(self.conv9(x))))
-        x = self.activation10(self.bn10(self.conv10(x)))
+        x = self.features3(x)
         x = self.avg_pool(x)
 
         x = x.view(x.size(0), -1)
         x = self.linear(x)
         return x
+
+class CNN10(CNNX):
+    number_bits = 10
+
+    def __init__(self, bits):
+        super(CNN10, self).__init__(bits)
 

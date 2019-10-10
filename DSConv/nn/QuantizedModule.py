@@ -14,4 +14,3 @@ class QuantizedModule(torch.nn.Module):
     def quantize(self):
         [m.quantize() for m in self.modules() if isinstance(m, DSConv2d)]
 
-
