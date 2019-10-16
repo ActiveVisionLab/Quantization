@@ -82,5 +82,6 @@ class BFPQuant(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad):
+        # STE Gradient
         return grad, None, None, None, None, None
 
