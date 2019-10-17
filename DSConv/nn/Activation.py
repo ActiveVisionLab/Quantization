@@ -77,7 +77,6 @@ class BFPQuant(torch.autograd.Function):
     @staticmethod
     def forward(ctx, inp, min_e, max_e, mantissa_bit, min_m, max_m):
         max_exponent = BFPQuant.__find_exponent__(inp, min_e, max_e)
-        print(f"Right Max Exponent:{max_exponent}")
         quantized_act = BFPQuant.__to_exponent_mantissa_width__(inp, max_exponent, mantissa_bit, min_m, max_m)
         return quantized_act
 
