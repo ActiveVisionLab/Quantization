@@ -53,6 +53,7 @@ def train(model, batch_size=240, num_workers=8, dataset_folder_path='/home/marce
                 tqdm.write("[%d, %d] loss: %.5f" % (epoch+1, i+1, running_loss/500))
                 running_loss = 0.0
     
+    model = model.module
     correct1, correct5, total = test(model)
     print(correct1/total, correct5/total)
 

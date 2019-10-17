@@ -10,8 +10,8 @@
 template <typename scalar_t>
 void forward(const torch::TensorAccessor<float, 5> activations, const int32_t m_bits,
              const int32_t e_bits, torch::TensorAccessor<float, 5> output) {
-    const int32_t B = activations.size(0);
-    const int32_t N = activations.size(1);
+    const int32_t N = activations.size(0);
+    const int32_t B = activations.size(1);
     const int32_t C = activations.size(2);
     const int32_t H = activations.size(3);
     const int32_t W = activations.size(4);
@@ -20,29 +20,30 @@ void forward(const torch::TensorAccessor<float, 5> activations, const int32_t m_
         for (int32_t n = 0; n < N; n++) {
             for (int32_t w = 0; w < W; w++) {
                 for (int32_t h = 0; h < H; h++) {
-                    int32_t max_e = 0;
+                    uint32_t max_e = 0;
                     // max in neighborhood
                     for (int32_t c = 0; c < C; c++) {
-                        int32_t data;
-                        std::memcpy(&data, &activations[b][n][c][w][h], sizeof data);
-                        int32_t e = data & EXP_MAGIC_NUM;
+                        uint32_t data;
+                        std::memcpy(&data, &activations[n][b][c][w][h], sizeof data);
+                        uint32_t e = data & EXP_MAGIC_NUM;
+                        // std::cout << e << std::endl;
                         if (e > max_e) {
                             max_e = e;
                         }
                     }
                     for (int32_t c = 0; c < C; c++) {
                         // Load data from tensor
-                        int32_t data;
-                        std::memcpy(&data, &activations[b][n][c][w][h], sizeof data);
+                        uint32_t data;
+                        std::memcpy(&data, &activations[n][b][c][w][h], sizeof data);
                         // Extract exponent from the data
-                        int32_t e = data & EXP_MAGIC_NUM;
+                        uint32_t e = data & EXP_MAGIC_NUM;
                         // Extract mantissa from data and convert to 1+m form
-                        int32_t m = data & MAN_MAGIC_NUM | 0x800000;
+                        uint32_t m = data & MAN_MAGIC_NUM | 0x800000;
                         // Compute difference in exponents
-                        int32_t diff = max_e - e;
+                        uint32_t diff = (max_e - e)>>23;
 
-                        int32_t new_m = m;
-                        int32_t new_e = max_e;
+                        uint32_t new_m = m;
+                        uint32_t new_e = max_e;
                         // For non-zero diff rightshift by the difference and correct the exponent
                         if (diff != 0) {
                             new_m = m >> diff;
@@ -50,8 +51,13 @@ void forward(const torch::TensorAccessor<float, 5> activations, const int32_t m_
                         }
                         // Truncate and reconvert to m form
                         new_m = new_m & 0x00600000;
-                        int32_t new_data = (SIG_MAGIC_NUM & data) | max_e | new_m;
-                        std::memcpy(&output[b][n][c][w][h], &new_data, sizeof(float));
+                        uint32_t new_data = (SIG_MAGIC_NUM & data) | max_e | new_m;
+                        std::memcpy(&output[n][b][c][w][h], &new_data, sizeof(float));
+                        // if (diff!=0){
+                        //     output[n][b][c][w][h] -= (2 << ((max_e >> 23)-127));
+                        //     std::cout << (max_e>>23) << " " << (2<< ((max_e >> 23)-127)) << std::endl;
+                        // }
+                        
                     }
                 }
             }

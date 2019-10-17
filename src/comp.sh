@@ -1,1 +1,0 @@
-g++ -I/home/marcelo/miniconda3/pkgs/pytorch-1.2.0-py3.7_cuda9.2.148_cudnn7.6.2_0/lib/python3.7/site-packages/torch/include/torch act.cpp

@@ -2,6 +2,9 @@ from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CppExtension
 import sysconfig
 
+
+### Run this witht he command:
+### python setup.py build_ext --inplace
 flags = []
 
 extra_compile_args = sysconfig.get_config_var("CFLAGS").split()
