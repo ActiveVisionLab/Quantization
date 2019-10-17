@@ -50,7 +50,8 @@ void forward(const torch::TensorAccessor<float, 5> activations, const int32_t m_
                         }
                         // Truncate and reconvert to m form
                         new_m = new_m & 0x00600000;
-                        output[b][n][c][w][h] = (SIG_MAGIC_NUM & data) | max_e | new_m;
+                        std::memcpy(&output[b][n][c][w][h],
+                                    &((SIG_MAGIC_NUM & data) | max_e | new_m), sizeof(float))
                     }
                 }
             }
