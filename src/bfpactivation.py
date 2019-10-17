@@ -29,8 +29,8 @@ from . import bfpactivation_cpu
 
 class BFPActivationFunction(Function):
     @staticmethod
-    def forward(ctx, activation):
-        outputs = bfpactivation_cpu.forward(activation, 0, 0)
+    def forward(ctx, activation, mantissa_bits=3):
+        outputs = bfpactivation_cpu.forward(activation, mantissa_bits, 0)
 
         output = outputs[0]
         # ctx.save_for_backward(output, argmax)

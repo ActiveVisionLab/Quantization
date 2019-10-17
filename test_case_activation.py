@@ -4,7 +4,6 @@ import torch
 import numpy as np
 
 
-
 func_act = BFPQuant.apply
 theo_activation = BFPActivationFunction.apply
 
@@ -18,7 +17,7 @@ act = torch.randn((number_blocks, batch_size, block_size, width, height))
 
 
 sol = func_act(act, -127, 128, 3, -7, 7)
-sol_theo = theo_activation(act)
+sol_theo = theo_activation(act, 3)
 
 print(act[0, 0, :, 0, 0])
 print(sol_theo[0, 0, :, 0, 0])

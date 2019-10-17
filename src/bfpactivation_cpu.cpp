@@ -3,12 +3,13 @@
 
 #include <vector>
 
+#define SIG_MAGIC_NUM 0x80000000
 #define EXP_MAGIC_NUM 0x7f800000
 #define MAN_MAGIC_NUM 0x007fffff
-#define SIG_MAGIC_NUM 0x80000000
+#define LEADING_1 0x00800000
 
 template <typename scalar_t>
-void forward(const torch::TensorAccessor<float, 5> activations, const int32_t m_bits,
+void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t trunc_num,
              const int32_t e_bits, torch::TensorAccessor<float, 5> output) {
     const int32_t N = activations.size(0);
     const int32_t B = activations.size(1);
@@ -35,30 +36,64 @@ void forward(const torch::TensorAccessor<float, 5> activations, const int32_t m_
                         // Load data from tensor
                         uint32_t data;
                         std::memcpy(&data, &activations[n][b][c][w][h], sizeof data);
-                        // Extract exponent from the data
-                        uint32_t e = data & EXP_MAGIC_NUM;
-                        // Extract mantissa from data and convert to 1+m form
-                        uint32_t m = data & MAN_MAGIC_NUM | 0x800000;
-                        // Compute difference in exponents
-                        uint32_t diff = (max_e - e)>>23;
 
-                        uint32_t new_m = m;
-                        uint32_t new_e = max_e;
-                        // For non-zero diff rightshift by the difference and correct the exponent
-                        if (diff != 0) {
-                            new_m = m >> diff;
-                            new_e = ((new_e >> 23) - diff) << 23;
-                        }
-                        // Truncate and reconvert to m form
-                        new_m = new_m & 0x00600000;
-                        uint32_t new_data = (SIG_MAGIC_NUM & data) | max_e | new_m;
-                        std::memcpy(&output[n][b][c][w][h], &new_data, sizeof(float));
-                        // if (diff!=0){
-                        //     output[n][b][c][w][h] -= (2 << ((max_e >> 23)-127));
-                        //     std::cout << (max_e>>23) << " " << (2<< ((max_e >> 23)-127)) << std::endl;
-                        // }
-                        
+                        // Extract the parts of the floating point number
+                        uint32_t s = data & SIG_MAGIC_NUM;
+                        uint32_t e = data & EXP_MAGIC_NUM;
+                        uint32_t m = data & MAN_MAGIC_NUM;
+                        std::cout << "s:" << std::hex << (s >> 31) << " e:" << std::hex << e
+                                  << " m:" << std::hex << m << std::endl;
+
+                        // calculate the required shift
+                        uint32_t shift = (max_e - e) >> 23;
+                        std::cout << "shift:" << shift << std::endl;
+
+                        // convert into m form and shift the mantissa
+                        uint32_t new_m = m | LEADING_1;
+                        new_m = new_m >> shift;
+
+                        // truncate the mantissa
+                        uint32_t trunc_m = new_m & trunc_num;
+
+                        // build the quantised float
+                        uint32_t out = s | max_e | trunc_m;
+
+                        // put quantised float back into tensor
+                        std::memcpy(&output[n][b][c][w][h], &out, sizeof out);
+
+                        // correct back into 1+m form.
+                        output[n][b][c][w][h] +=
+                            s >> 31 ? 2 << ((max_e >> 23) - 127) : -(2 << ((max_e >> 23) - 127));
                     }
+
+                    // for (int32_t c = 0; c < C; c++) {
+                    //     // Load data from tensor
+                    //     uint32_t data;
+                    //     std::memcpy(&data, &activations[n][b][c][w][h], sizeof data);
+                    //     // Extract exponent from the data
+                    //     uint32_t e = data & EXP_MAGIC_NUM;
+                    //     // Extract mantissa from data and convert to 1+m form
+                    //     uint32_t m = data & MAN_MAGIC_NUM | 0x800000;
+                    //     // Compute difference in exponents
+                    //     uint32_t diff = (max_e - e) >> 23;
+
+                    //     uint32_t new_m = m;
+                    //     uint32_t new_e = max_e;
+                    //     // For non-zero diff rightshift by the difference and correct the
+                    //     exponent if (diff != 0) {
+                    //         new_m = m >> diff;
+                    //         new_e = ((new_e >> 23) - diff) << 23;
+                    //     }
+                    //     // Truncate and reconvert to m form
+                    //     new_m = new_m & 0x00600000;
+                    //     uint32_t new_data = (SIG_MAGIC_NUM & data) | max_e | new_m;
+                    //     std::memcpy(&output[n][b][c][w][h], &new_data, sizeof(float));
+                    //     // if (diff!=0){
+                    //     //     output[n][b][c][w][h] -= (2 << ((max_e >> 23)-127));
+                    //     //     std::cout << (max_e>>23) << " " << (2<< ((max_e >> 23)-127)) <<
+                    //     //     std::endl;
+                    //     // }
+                    // }
                 }
             }
         }
@@ -69,9 +104,10 @@ std::vector<torch::Tensor> bfpactivation_forward(const torch::Tensor activations
                                                  const int32_t m_bits, const int32_t e_bits) {
 
     auto output = torch::zeros_like(activations);
+    const uint32_t trunc_num = (MAN_MAGIC_NUM >> (23 - m_bits)) << (23 - m_bits);
 
     AT_DISPATCH_FLOATING_TYPES(activations.type(), "bfpactivation_forward_cpu", ([&] {
-                                   forward<scalar_t>(activations.accessor<float, 5>(), m_bits,
+                                   forward<scalar_t>(activations.accessor<float, 5>(), trunc_num,
                                                      e_bits, output.accessor<float, 5>());
                                }));
 
