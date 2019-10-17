@@ -10,8 +10,9 @@
 #define LEADING_1 0x00800000
 
 template <typename scalar_t>
-void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t trunc_num, const uint32_t round_num,
-             const int32_t e_bits, torch::TensorAccessor<float, 5> output) {
+void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t trunc_num,
+             const uint32_t round_num, const int32_t e_bits,
+             torch::TensorAccessor<float, 5> output) {
     const int32_t N = activations.size(0);
     const int32_t B = activations.size(1);
     const int32_t C = activations.size(2);
@@ -49,22 +50,22 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                         uint32_t shift = (max_e - e) >> 23;
                         // std::cout << "shift:" << shift << std::endl;
 
-                        // convert into m form 
+                        // convert into m form
                         uint32_t new_m = m | LEADING_1;
 
-                        //shift the mantissa
+                        // shift the mantissa
                         new_m = new_m >> shift;
 
                         // round the value correctly (half LSB rounding)
                         new_m += round_num;
 
                         // correct if we round too far
-                        // if ((new_m >> 24) > 1){
-                        //     // new_m -= round_num;
-                        //     new_m = m | LEADING_1;
-                        //     new_m = new_m >> shift;
-                        // }
-                        
+                        if (new_m >> 24) {
+                            // new_m -= round_num;
+                            new_m = m | LEADING_1;
+                            new_m = new_m >> shift;
+                        }
+
                         // truncate the mantissa
                         uint32_t trunc_m = new_m & trunc_num;
 
@@ -74,20 +75,27 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                         // put quantised float back into tensor
                         std::memcpy(&output[n][b][c][w][h], &out, sizeof out);
 
-                        // std::cout << "Before correcting the 1+m form " << output[n][b][c][w][h] << std::endl;
+                        // std::cout << "Before correcting the 1+m form " << output[n][b][c][w][h]
+                        // << std::endl;
 
                         // std::cout << (s>>31) << std::endl;
 
                         // correct back into 1+m form.
-                        if(shift != 0){
+                        if ((shift == 1) && (new_m >> 23 == 1)) {
+                            // This block catches the error when the rouding does the mantissa
+                            // correction for us.
+                            continue;
+                        } else if (shift != 0) {
                             output[n][b][c][w][h] +=
-                            // TODO: Find another way of doing this:
-                            // The problem with shift is that it doesn't allow for decimal points
-                            // i.e. if max_e = -1, we would have to shift 1 >> 1, which is always 0.
-                                // s >> 31 ? 1 << ((max_e >> 23) - 127) : -(1 << ((max_e >> 23) - 127));
-                                s >> 31 ? pow(2, ((max_e >> 23) - 127)) : - pow(2, ((max_e >> 23))-127);
+                                // TODO: Find another way of doing this:
+                                // The problem with shift is that it doesn't allow for decimal
+                                // points i.e. if max_e = -1, we would have to shift 1 >> 1,
+                                // which is always 0. s >> 31 ? 1 << ((max_e >> 23) - 127) : -(1
+                                // <<
+                                // ((max_e >> 23) - 127));
+                                s >> 31 ? pow(2, ((max_e >> 23) - 127))
+                                        : -pow(2, ((max_e >> 23)) - 127);
                         }
-
                     }
 
                     // for (int32_t c = 0; c < C; c++) {
@@ -128,15 +136,16 @@ std::vector<torch::Tensor> bfpactivation_forward(const torch::Tensor activations
                                                  const int32_t m_bits, const int32_t e_bits) {
 
     auto output = torch::zeros_like(activations);
-    //TODO comments for these two lines
+    // TODO comments for these two lines
     const uint32_t trunc_num = (MAN_MAGIC_NUM >> (23 - (m_bits - 1))) << (23 - (m_bits - 1));
     const uint32_t round_num = ROUND_MAGIC_NUM >> (m_bits - 1);
     // std::cout << std::hex << trunc_num << std::endl;
     // std::cout << std::hex << round_num << std::endl;
 
     AT_DISPATCH_FLOATING_TYPES(activations.type(), "bfpactivation_forward_cpu", ([&] {
-                                   forward<scalar_t>(activations.accessor<float, 5>(), trunc_num, round_num,
-                                                     e_bits, output.accessor<float, 5>());
+                                   forward<scalar_t>(activations.accessor<float, 5>(), trunc_num,
+                                                     round_num, e_bits,
+                                                     output.accessor<float, 5>());
                                }));
 
     return {output};
