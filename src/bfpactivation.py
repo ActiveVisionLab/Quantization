@@ -5,22 +5,21 @@ from torch import nn
 from torch.autograd import Function
 
 from . import bfpactivation_cpu
+from . import bfpactivation_cuda
 
-# from . import bfpactivation_cuda
 
+class BFPActivationFunctionGPU(Function):
+    @staticmethod
+    def forward(ctx, activations, mantissa_bits):
+        outputs = bfpactivation_cuda.forward(activations, mantissa_bits)
 
-# class BFPActivationFunctionGPU(Function):
-#     @staticmethod
-#     def forward(ctx, features, neighborhood):
-#         outputs = bfpactivation_cuda.forward(features, neighborhood.int())
+        output = outputs[0]
 
-#         output = outputs[0]
+        return output
 
-#         return output
-
-#     @staticmethod
-#     def backward(ctx, out_gradients):
-#         return out_gradients, None
+    @staticmethod
+    def backward(ctx, out_gradients):
+        return out_gradients, None
 
 
 class BFPActivationFunctionCPU(Function):
