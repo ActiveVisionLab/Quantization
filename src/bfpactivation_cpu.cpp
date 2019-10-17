@@ -53,8 +53,8 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                         new_m = new_m >> shift;
 
                         // truncate the mantissa
-                        // uint32_t trunc_m = new_m & trunc_num;
-                        uint32_t trunc_m = new_m & 0x00600000;
+                        uint32_t trunc_m = new_m & trunc_num;
+                        // uint32_t trunc_m = new_m & 0x00600000;
 
                         // build the quantised float
                         uint32_t out = s | max_e | trunc_m;
