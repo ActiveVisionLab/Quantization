@@ -1,5 +1,5 @@
 from DSConv.nn.Activation import BFPQuant
-from src.bfpactivation import BFPActivationFunction
+from src.bfpactivation import BFPActivation
 import torch
 import numpy as np
 
@@ -8,18 +8,18 @@ from prettytable import PrettyTable
 if __name__ == "__main__":
 
     func_act = BFPQuant.apply
-    theo_activation = BFPActivationFunction.apply
+    theo_activation = BFPActivation(3)
 
-    number_blocks = 1
-    batch_size = 1
+    number_blocks = 3
+    batch_size = 2
     block_size = 32
-    width = 1
-    height = 1
+    width = 3
+    height = 3
 
     act = torch.randn((number_blocks, batch_size, block_size, width, height))
 
     sol = func_act(act, -127, 128, 3, -7, 7)
-    sol_theo = theo_activation(act, 3)
+    sol_theo = theo_activation(act)
 
     x = PrettyTable()
     col_names = ["orig", "cpp", "pytorch", "error"]
