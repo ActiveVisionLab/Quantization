@@ -53,7 +53,8 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                         new_m = new_m >> shift;
 
                         // truncate the mantissa
-                        uint32_t trunc_m = new_m & trunc_num;
+                        // uint32_t trunc_m = new_m & trunc_num;
+                        uint32_t trunc_m = new_m & 0x00600000;
 
                         // build the quantised float
                         uint32_t out = s | max_e | trunc_m;
@@ -61,9 +62,20 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                         // put quantised float back into tensor
                         std::memcpy(&output[n][b][c][w][h], &out, sizeof out);
 
+                        std::cout << "Before correcting the 1+m form " << output[n][b][c][w][h] << std::endl;
+
+                        std::cout << (s>>31) << std::endl;
+
                         // correct back into 1+m form.
-                        output[n][b][c][w][h] +=
-                            s >> 31 ? 2 << ((max_e >> 23) - 127) : -(2 << ((max_e >> 23) - 127));
+                        if(shift != 0){
+                            output[n][b][c][w][h] +=
+                            // TODO: Find another way of doing this:
+                            // The problem with shift is that it doesn't allow for decimal points
+                            // i.e. if max_e = -1, we would have to shift 1 >> 1, which is always 0.
+                                // s >> 31 ? 1 << ((max_e >> 23) - 127) : -(1 << ((max_e >> 23) - 127));
+                                s >> 31 ? pow(2, ((max_e >> 23) - 127)) : - pow(2, ((max_e >> 23))-127);
+                        }
+
                     }
 
                     // for (int32_t c = 0; c < C; c++) {

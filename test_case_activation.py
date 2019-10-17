@@ -15,13 +15,12 @@ height = 1
 
 act = torch.randn((number_blocks, batch_size, block_size, width, height))
 
-
 sol = func_act(act, -127, 128, 3, -7, 7)
 sol_theo = theo_activation(act, 3)
 
-print(act[0, 0, :, 0, 0])
-print(sol_theo[0, 0, :, 0, 0])
-print(sol[0, 0, :, 0, 0])
+print("Original:", act[0, 0, :, 0, 0])
+print("Theo's act:", sol_theo[0, 0, :, 0, 0])
+print("Mine:", sol[0, 0, :, 0, 0])
 print(sol_theo[0, 0, :, 0, 0] - sol[0, 0, :, 0, 0])
 
 
