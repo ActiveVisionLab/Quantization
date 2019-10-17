@@ -29,32 +29,28 @@ from . import bfpactivation_cpu
 
 class BFPActivationFunction(Function):
     @staticmethod
-    def forward(ctx, activation, mantissa_bits=3):
-        outputs = bfpactivation_cpu.forward(activation, mantissa_bits, 0)
+    def forward(ctx, activations, mantissa_bits=3):
+        outputs = bfpactivation_cpu.forward(activations, mantissa_bits, 0)
 
         output = outputs[0]
         # ctx.save_for_backward(output, argmax)
 
         return output
 
-    # @staticmethod
-    # def backward(ctx, out_gradients):
-    #     output, argmax = ctx.saved_tensors
-
-    #     outputs = bfpactivation_cpu.backward(argmax.int(), out_gradients)
-    #     gradients = outputs[0]
-
-    #     return gradients, None
+    @staticmethod
+    def backward(ctx, out_gradients):
+        return out_gradients, None
 
 
-# class FlexPool(nn.Module):
-#     def __init__(self):
-#         super(FlexPool, self).__init__()
+class FlexPool(nn.Module):
+    def __init__(self, mantissa_bits=3):
+        super(FlexPool, self).__init__()
+        self.mantissa_bits = mantissa_bits
 
-#     def forward(self, features, neighbourhoods):
-#         if features.is_cuda and neighbourhoods.is_cuda:
-#             return FlexPoolFunctionGPU.apply(features, neighbourhoods)
-#         elif not features.is_cuda and not neighbourhoods.is_cuda:
-#             return FlexPoolFunctionCPU.apply(features, neighbourhoods)
-#         else:
-#             raise RuntimeError("All tensors not cuda or cpu tensors.")
+    def forward(self, activations):
+        if activations.is_cuda:
+            raise RuntimeError("CUDA version not implemented yet")
+        elif not activations.is_cuda:
+            return BFPActivationFunction.apply(activations, self.mantissa_bits)
+        else:
+            raise RuntimeError("All tensors not cuda or cpu tensors.")

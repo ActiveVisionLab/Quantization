@@ -151,28 +151,6 @@ std::vector<torch::Tensor> bfpactivation_forward(const torch::Tensor activations
     return {output};
 }
 
-// template <typename scalar_t, typename scalar_int_t>
-// void backward(const torch::TensorAccessor<scalar_int_t, 3> argmax,
-//               const torch::TensorAccessor<scalar_t, 3> out_gradients,
-//               torch::TensorAccessor<scalar_t, 3> gradients)
-// {
-// }
-
-// std::vector<torch::Tensor> bfpactivation_backward(const torch::Tensor argmax,
-//                                                   const torch::Tensor out_gradients)
-// {
-//     auto gradients = torch::zeros_like(out_gradients);
-
-//     AT_DISPATCH_FLOATING_TYPES(out_gradients.type(), "bfpactivation_backward_cpu", ([&] {
-//                                    backward<scalar_t>(argmax.accessor<int32_t, 3>(),
-//                                                       out_gradients.accessor<scalar_t, 3>(),
-//                                                       gradients.accessor<scalar_t, 3>());
-//                                }));
-
-//     return {gradients};
-// }
-
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("forward", &bfpactivation_forward, "BFPActivation forward (CPU)");
-    // m.def("backward", &bfpactivation_backward, "BFPActivation backward (CPU)");
 }
