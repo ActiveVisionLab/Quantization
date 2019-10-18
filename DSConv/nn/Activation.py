@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Function
 
-class BFPActivation(nn.Module):
+class BFPActivation_Legacy(nn.Module):
     def __init__(self, mantissa, exponent, blk):
         super(BFPActivation, self).__init__()
         self.e = exponent
