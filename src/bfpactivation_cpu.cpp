@@ -82,8 +82,8 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                                 // which is always 0. s >> 31 ? 1 << ((max_e >> 23) - 127) : -(1
                                 // <<
                                 // ((max_e >> 23) - 127));
-                                s >> 31 ? pow(2, (((int32_t)max_e >> 23) - 127))
-                                        : -pow(2, (((int32_t)max_e >> 23)) - 127);
+                                s >> 31 ? pow(2, (((int32_t)(max_e >> 23)) - 127))
+                                        : -pow(2, (((int32_t)(max_e >> 23))) - 127);
                         }
                     }
                 }
