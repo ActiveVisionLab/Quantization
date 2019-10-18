@@ -15,12 +15,10 @@ class QuantizedModule(torch.nn.Module):
         [m.quantize() for m in self.modules() if isinstance(m, DSConv2d)]
 
     def state_dict_quant(self, destination = None, prefix='', keep_vars=False):
-        # destination = super(QuantizedModule, self).state_dict(destination, prefix, keep_vars)
-        # print(destination.keys())
-        # input('')
         _state_dict_quant_ = {}
         for name, m in self.named_modules():
             if isinstance(m, DSConv2d):
+                print(name)
                 _state_dict_quant_[name + '.alpha'] = m.alpha
                 _state_dict_quant_[name + '.intw'] = m.intw.to(dtype=torch.int8)
             
@@ -37,20 +35,26 @@ class QuantizedModule(torch.nn.Module):
 
         return _state_dict_quant_
 
-            
-    # def state_dict(self, destination=None, prefix='', keep_vars=False):
-    #     print("I am overwriting state_dict")
-    #     destination = super(QuantizedModule, self).state_dict(destination, prefix, keep_vars)
-    #     print(destination.keys())
-    #     input('')
-    #     conv_dests = [k for k in destination.keys() if isinstance(getattr(self, ''.join(k.split('.')[:-1])), DSConv2d)]
-    #     print(conv_dests)
-    #     input('')
+    def load_state_dict_quant(self, state_dict_quant):
+        for name, m in self.named_modules():
+            if isinstance(m, DSConv2d):
+                m.alpha = state_dict_quant[name + '.alpha']
+                m.alpha = m.alpha.repeat_interleave(32, dim = 1)
+                m.intw = state_dict_quant[name + '.intw'].to(dtype=torch.float32)
+                shp = m.intw.shape
+                m.alpha = m.alpha[:, :shp[1], ...]  # in case shp[1] is not a multiple of 32 
 
-    #     for k in destination.keys():
-    #         print('.'.join(k.split('.')[:-1]))
-    #         # print(getattr(self, k[:5]))
-    #         input('')
-        
+                m.weight.data = m.intw*m.alpha
+                m.quant_w.data = m.weight.data
 
-    #     return destination
+            if isinstance(m, torch.nn.Linear):
+                m.bias = state_dict_quant[name+'.bias']
+                m.weight = state_dict_quant[name+'.weight']
+
+            if isinstance(m, torch.nn.BatchNorm2d):
+                m.weight = state_dict_quant[name+'.weight']
+                m.bias = state_dict_quant[name+'.bias']
+                m.running_mean = state_dict_quant[name+'.running_mean']
+                m.running_var = state_dict_quant[name+'.running_var']
+                m.num_batches_tracked = state_dict_quant[name+'.num_batches_tracked']
+
