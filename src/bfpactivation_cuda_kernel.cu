@@ -1,6 +1,8 @@
 // (c) Theo Costain 2019
 
-#include <torch/extension.h>
+// This was not compiling with extension.h on anubis5 with cuda 9. This is supposed to fix it.
+#include <torch/types.h>
+// #include <torch/extension.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
