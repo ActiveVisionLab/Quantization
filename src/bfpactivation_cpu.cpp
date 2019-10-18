@@ -75,9 +75,6 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                         // put quantised float back into tensor
                         std::memcpy(&output[n][b][c][w][h], &out, sizeof out);
 
-                        // std::cout << "Before correcting the 1+m form " << output[n][b][c][w][h]
-                        // << std::endl;
-
                         // std::cout << (s>>31) << std::endl;
 
                         // correct back into 1+m form.
@@ -93,8 +90,8 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                                 // which is always 0. s >> 31 ? 1 << ((max_e >> 23) - 127) : -(1
                                 // <<
                                 // ((max_e >> 23) - 127));
-                                s >> 31 ? pow(2, ((max_e >> 23) - 127))
-                                        : -pow(2, ((max_e >> 23)) - 127);
+                                s >> 31 ? pow(2, (((int32_t)max_e >> 23) - 127))
+                                        : -pow(2, (((int32_t)max_e >> 23)) - 127);
                         }
                     }
 
