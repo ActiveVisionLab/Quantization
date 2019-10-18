@@ -2,8 +2,12 @@ from DSConv.nn.Activation import BFPQuant
 from src.bfpactivation import BFPActivation
 import torch
 import numpy as np
+from os import environ as env
 
 from prettytable import PrettyTable
+
+env["CUDA_VISIBLE_DEVICES"] = "1"
+env["CUDA_LAUNCH_BLOCKING"] = "1"
 
 if __name__ == "__main__":
 
@@ -19,7 +23,7 @@ if __name__ == "__main__":
     act = torch.randn((number_blocks, batch_size, block_size, width, height))
 
     sol = func_act(act, -127, 128, 3, -7, 7)
-    sol_theo = theo_activation(act)
+    sol_theo = theo_activation(act.cuda()).cpu()
 
     x = PrettyTable()
     col_names = ["orig", "cpp", "pytorch", "error"]
