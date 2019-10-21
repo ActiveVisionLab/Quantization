@@ -109,3 +109,4 @@ data*
 .vscode
 .npy
 core
+*.pth
