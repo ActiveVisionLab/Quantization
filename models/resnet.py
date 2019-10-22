@@ -7,7 +7,8 @@ import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 
 from DSConv.nn.dsconv2d import DSConv2d
-from DSConv.nn.bfp_quantization import BFPActivationLegacy as BFPActivation
+#from DSConv.nn.bfp_quantization import BFPActivationLegacy as BFPActivation
+from src.bfpactivation import BFPActivation
 from DSConv.nn.quantized_module import QuantizedModule
 
 model_urls = {

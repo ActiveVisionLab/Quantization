@@ -26,7 +26,7 @@ class BFPActivationLegacy(nn.Module):
         self.__quantize__ = BFPQuant.apply
 
     def extra_repr(self):
-        repr_str = ('exponent={e}, mantissa={m}, block_size={blk}')
+        repr_str = ('exponent={exp}, mantissa={mts}, block_size={blk}')
         return repr_str.format(**self.__dict__)
 
     def forward(self, inp):

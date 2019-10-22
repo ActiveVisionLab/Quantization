@@ -70,5 +70,5 @@ class DSConvQuant(torch.autograd.Function):
 
 
     @staticmethod
-    def backward(ctx, grad_weight, _):
+    def backward(ctx, grad_weight, grad_int, grad_alpha):
         return grad_weight, None, None, None

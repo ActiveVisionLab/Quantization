@@ -108,7 +108,7 @@ def counting_dsconv(model):
     return count
 
 if __name__=="__main__":
-    model = QuantizedResNet50(4, 32, pretrained=True)
+    model = QuantizedResNet18(4, 32, pretrained=True)
     print(model)
     train(model)
     correct1, correct5, total = test(model)

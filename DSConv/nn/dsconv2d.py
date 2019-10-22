@@ -13,7 +13,7 @@ from torch.nn.modules.conv import _ConvNd
 from torch.nn import functional as F
 from torch.nn.modules.utils import _pair
 
-from dsconv_quantization import DSConvQuant
+from .dsconv_quantization import DSConvQuant
 
 class DSConv2d(_ConvNd):
     '''
