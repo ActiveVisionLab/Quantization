@@ -2,26 +2,30 @@ from models.resnet import QuantizedResNet18
 from test_models import test
 import torch
 
-model = QuantizedResNet18(4, 32, pretrained=True)
+## Creating quant4 and quant2
+bits = 4
+model = QuantizedResNet18(bits, 32, pretrained=True)
 model.quantize()
+torch.save(model.state_dict_quant(bits=bits), 'quant4.pth')
+# correct1, correct5, total = test(model, 128)
+# print(f"Results from unloaded quant4 model: Top1 {correct1/total}")
 
-print(test(model, 128))
+bits = 2
+model = QuantizedResNet18(bits, 32, pretrained=True)
+model.quantize()
+torch.save(model.state_dict_quant(bits=bits), 'quant2.pth')
+# correct1, correct5, total = test(model, 128)
+# print(f"Results from unloaded quant2 model: Top1 {correct1/total}")
 
-m1 = model.conv1.quant_w
+## Testing quant4 and quant2
+bits=4
+model = QuantizedResNet18(bits, 32, pretrained=False)
+model.load_state_dict_quant(torch.load('quant4.pth'), bits=bits)
+correct1, correct5, total = test(model, 128)
+print(f"Results from loaded quant4 model: Top1 {correct1/total}")
 
-# print(model.state_dict())
-# print(model.state_dict_quant())
-
-torch.save(model.state_dict(), 'normal')
-torch.save(model.state_dict_quant(), 'quant')
-
-model = QuantizedResNet18(4, 32, pretrained=False)
-model.load_state_dict_quant(torch.load('quant'))
-m2 = model.conv1.weight
-print(test(model, 128))
-# input('')
-# print(m2)
-# input('')
-# print(m1-m2)
-
-# print(torch.load('quant'))
+bits=2
+model = QuantizedResNet18(bits, 32, pretrained=False)
+model.load_state_dict_quant(torch.load('quant2.pth'), bits=bits)
+correct1, correct5, total = test(model, 128)
+print(f"Results from loaded quant2 model: Top1 {correct1/total}")
