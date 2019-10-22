@@ -1,4 +1,4 @@
-from models.CNNX import CNN10
+from models.cnnx import CNN10
 import torchvision
 import torchvision.transforms as transforms
 import torch

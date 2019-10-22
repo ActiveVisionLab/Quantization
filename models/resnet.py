@@ -1,10 +1,14 @@
+'''
+(c) Marcelo Genanri 2019
+ResNet module adapted from the original pytorch file in order to use DSConv
+'''
 import torch
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 
-from DSConv.nn.DSConv2d import DSConv2d
-from DSConv.nn.Activation import BFPActivation_Legacy as BFPActivation
-from DSConv.nn.QuantizedModule import QuantizedModule
+from DSConv.nn.dsconv2d import DSConv2d
+from DSConv.nn.bfp_quantization import BFPActivationLegacy as BFPActivation
+from DSConv.nn.quantized_module import QuantizedModule
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -165,22 +169,23 @@ class ResNet(QuantizedModule):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
-        for m in self.modules():
-            if isinstance(m, DSConv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+        for mod in self.modules():
+            if isinstance(mod, DSConv2d):
+                nn.init.kaiming_normal_(mod.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(mod, (nn.BatchNorm2d, nn.GroupNorm)):
+                nn.init.constant_(mod.weight, 1)
+                nn.init.constant_(mod.bias, 0)
 
         # Zero-initialize the last BN in each residual branch,
-        # so that the residual branch starts with zeros, and each residual block behaves like an identity.
+        # so that the residual branch starts with zeros, 
+        # and each residual block behaves like an identity.
         # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
         if zero_init_residual:
-            for m in self.modules():
-                if isinstance(m, Bottleneck):
-                    nn.init.constant_(m.bn3.weight, 0)
-                elif isinstance(m, BasicBlock):
-                    nn.init.constant_(m.bn2.weight, 0)
+            for mod in self.modules():
+                if isinstance(mod, Bottleneck):
+                    nn.init.constant_(mod.bn3.weight, 0)
+                elif isinstance(mod, BasicBlock):
+                    nn.init.constant_(mod.bn2.weight, 0)
 
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False, block_size=32):
         norm_layer = self._norm_layer
