@@ -98,7 +98,8 @@ __global__ void forward_kernel(
                     // points i.e. if max_e = -1, we would have to shift 1 >> 1,
                     // which is always 0.
                     // and pow is a "slow" operation
-                    s >> 31 ? pow(2, ((max_e >> 23) - 127)) : -pow(2, ((max_e >> 23)) - 127);
+                    s >> 31 ? pow(2, (((int32_t)(max_e >> 23)) - 127))
+                            : -pow(2, (((int32_t)(max_e >> 23))) - 127);
             }
         }
     }
