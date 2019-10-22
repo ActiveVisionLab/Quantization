@@ -45,7 +45,7 @@ class BFPActivation(nn.Module):
     def forward(self, activations):
         if activations.is_cuda:
             pass
-            # return BFPActivationFunctionGPU.apply(activations, self.mantissa_bits)
+            return BFPActivationFunctionGPU.apply(activations, self.mantissa_bits)
         elif not activations.is_cuda:
             return BFPActivationFunctionCPU.apply(activations, self.mantissa_bits)
         else:
