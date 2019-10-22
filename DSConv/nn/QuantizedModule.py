@@ -16,10 +16,11 @@ class QuantizedModule(torch.nn.Module):
 
     def state_dict_quant(self, destination = None, prefix='', keep_vars=False, block_size=32, bits=8):
         _state_dict_quant_ = {}
+        count = 0
         for name, m in self.named_modules():
             if isinstance(m, DSConv2d):
-                _state_dict_quant_[name + '.alpha'] = m.alpha
-
+                _state_dict_quant_[name + '.alpha'] = m.alpha.to(dtype=torch.float32) if count == 0 else m.alpha.to(dtype=torch.float16)
+                count += 1
                 if bits==4:
                     _state_dict_quant_[name + '.intw'] = self.__compress_to_4_bits__(m)
                 elif bits==2:
@@ -28,14 +29,14 @@ class QuantizedModule(torch.nn.Module):
                     _state_dict_quant_[name + '.intw'] = m.intw.to(dtype=torch.int8)
             
             if isinstance(m, torch.nn.Linear):
-                _state_dict_quant_[name+'.bias'] = m.bias
-                _state_dict_quant_[name+'.weight'] = m.weight
+                _state_dict_quant_[name+'.bias'] = m.bias.to(dtype=torch.float16)
+                _state_dict_quant_[name+'.weight'] = m.weight.to(dtype=torch.float16)
 
             if isinstance(m, torch.nn.BatchNorm2d):
-                _state_dict_quant_[name+'.weight'] = m.weight
-                _state_dict_quant_[name+'.bias'] = m.bias
-                _state_dict_quant_[name+'.running_mean'] = m.running_mean
-                _state_dict_quant_[name+'.running_var'] = m.running_var
+                _state_dict_quant_[name+'.weight'] = m.weight.to(dtype=torch.float16)
+                _state_dict_quant_[name+'.bias'] = m.bias.to(dtype=torch.float16)
+                _state_dict_quant_[name+'.running_mean'] = m.running_mean.to(dtype=torch.float16)
+                _state_dict_quant_[name+'.running_var'] = m.running_var.to(dtype=torch.float16)
                 _state_dict_quant_[name+'.num_batches_tracked'] = m.num_batches_tracked
 
         return _state_dict_quant_
@@ -43,7 +44,7 @@ class QuantizedModule(torch.nn.Module):
     def load_state_dict_quant(self, state_dict_quant, block_size=32, bits=8):
         for name, m in self.named_modules():
             if isinstance(m, DSConv2d):
-                m.alpha = state_dict_quant[name + '.alpha']
+                m.alpha = state_dict_quant[name + '.alpha'].to(dtype=torch.float32)
                 m.alpha = m.alpha.repeat_interleave(block_size, dim=1)
 
                 if bits == 4:
@@ -53,20 +54,20 @@ class QuantizedModule(torch.nn.Module):
                 else:
                     m.intw = state_dict_quant[name + '.intw'].to(dtype=torch.float32)
                 shp = m.intw.shape
-                m.alpha = m.alpha[:, :shp[1], ...]  # in case shp[1] is not a multiple of 32 
+                m.alpha = m.alpha[:, :shp[1], ...]  # in case shp[1] is not a multiple of 32
 
                 m.weight.data = m.intw*m.alpha
                 m.quant_w.data = m.weight.data
 
             if isinstance(m, torch.nn.Linear):
-                m.bias = state_dict_quant[name+'.bias']
-                m.weight = state_dict_quant[name+'.weight']
+                m.bias.data = state_dict_quant[name+'.bias'].to(dtype=torch.float32)
+                m.weight.data = state_dict_quant[name+'.weight'].to(dtype=torch.float32)
 
             if isinstance(m, torch.nn.BatchNorm2d):
-                m.weight = state_dict_quant[name+'.weight']
-                m.bias = state_dict_quant[name+'.bias']
-                m.running_mean = state_dict_quant[name+'.running_mean']
-                m.running_var = state_dict_quant[name+'.running_var']
+                m.weight.data = state_dict_quant[name+'.weight'].to(dtype=torch.float32)
+                m.bias.data = state_dict_quant[name+'.bias'].to(dtype=torch.float32)
+                m.running_mean.data = state_dict_quant[name+'.running_mean'].to(dtype=torch.float32)
+                m.running_var.data = state_dict_quant[name+'.running_var'].to(dtype=torch.float32)
                 m.num_batches_tracked = state_dict_quant[name+'.num_batches_tracked']
 
     def __compress_to_2_bits__(self, module):
