@@ -15,11 +15,11 @@ if __name__ == "__main__":
     func_act = BFPQuant.apply
     theo_activation = BFPActivation(m_bits)
 
-    number_blocks = 12
-    batch_size = 256
+    number_blocks = 32
+    batch_size = 128
     block_size = 32
-    width = 256
-    height = 256
+    width = 7
+    height = 7
 
     act = 2*torch.randn((number_blocks, batch_size, block_size, width, height))
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
     torch.cuda.synchronize()
 
-    print("Timing:", start.elapsed_time(end))
+    print("Theo's Timing:", start.elapsed_time(end))
 
     start2 = torch.cuda.Event(enable_timing=True)
     end2 = torch.cuda.Event(enable_timing=True)
@@ -71,4 +71,4 @@ if __name__ == "__main__":
 
     torch.cuda.synchronize()
 
-    print("Timing:", start2.elapsed_time(end2))
+    print("PyTorch Timing:", start2.elapsed_time(end2))
