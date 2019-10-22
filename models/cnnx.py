@@ -22,27 +22,31 @@ class BaseConv(torch.nn.Module):
 
 
 class CNNX(QuantizedModule):
-
+    '''
+    Toy module to test DSConv in the CIFAR10 dataset.
+    Consists of X convolutions followed by BFPActivation functions
+    with Relu() and BatchNorms at the end of each
+    '''
     def __init__(self, bits):
         super(CNNX, self).__init__(bits, self.number_bits)
-        self.block_size=32
+        self.block_size = 32
 
         bit = self.bits.pop(0)
         self.conv1 = DSConv2d(3, 64, (3, 3), block_size=32, bit=bit, padding=1)
         self.bn1 = torch.nn.BatchNorm2d(64)
 
-        self.features1, outch  = self.make_layers(64, 3)
+        self.features1, outch = self.__make_layers__(64, 3)
         self.max_pool1 = torch.nn.MaxPool2d(2, stride=2)
 
-        self.features2, outch = self.make_layers(outch, 3)
+        self.features2, outch = self.__make_layers__(outch, 3)
         self.max_pool2 = torch.nn.MaxPool2d(2, stride=2)
 
-        self.features3, outch = self.make_layers(outch, 3)
+        self.features3, outch = self.__make_layers__(outch, 3)
         self.avg_pool = torch.nn.AvgPool2d(8)
 
         self.linear = torch.nn.Linear(outch, 10)
 
-    def make_layers(self, initial_channel, expansion):
+    def __make_layers__(self, initial_channel, expansion):
         number_layers = int((self.number_bits-1)/3)
         layers = []
         for i in range(number_layers):

@@ -9,7 +9,11 @@ weights can be updated using full precision.
 import torch
 
 class DSConvQuant(torch.autograd.Function):
-
+    '''
+    Uses least square to find the alpha values as described in DSConv paper.
+    Forward method uses a loop over the number of blocks, so not optimal
+    when weight size is too deep.
+    '''
     @staticmethod
     def __finding_alpha__(original_block, scaled_blck):
         numerator = (original_block*scaled_blck).sum(dim=1)
@@ -19,7 +23,7 @@ class DSConvQuant(torch.autograd.Function):
         return final_block, alpha
 
     @staticmethod
-    def quant_blk(blcknump, min_v, max_v):
+    def __quant_blk__(blcknump, min_v, max_v):
         absblcknump = torch.abs(blcknump)
         _, index_pos = torch.max(absblcknump, dim=1)
         absmax = torch.gather(blcknump, 1, index_pos.unsqueeze(1))
@@ -55,16 +59,16 @@ class DSConvQuant(torch.autograd.Function):
                 (tensor[:, i*blk:, ...],
                  intw[:, i*blk:, ...],
                  alpha[:, i, ...]) = \
-                 DSConvQuant.quant_blk(tensor[:, i*blk:, ...], min_v, max_v)
+                 DSConvQuant.__quant_blk__(tensor[:, i*blk:, ...], min_v, max_v)
             else:
                 (tensor[:, i*blk:(1+i)*blk, ...],
                  intw[:, i*blk:(1+i)*blk, ...],
                  alpha[:, i, ...]) = \
-                 DSConvQuant.quant_blk(tensor[:, i*blk:(1+i)*blk, ...], min_v, max_v)
+                 DSConvQuant.__quant_blk__(tensor[:, i*blk:(1+i)*blk, ...], min_v, max_v)
 
         return tensor, intw, alpha
 
 
     @staticmethod
-    def backward(ctx, grad_weight, grad_int, grad_alpha):
+    def backward(ctx, grad_weight, _):
         return grad_weight, None, None, None
