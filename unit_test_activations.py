@@ -60,11 +60,11 @@ height = 3
 m_bits = 3
 theo_activation = BFPActivation(m_bits)
 act = 2*torch.randn((number_blocks, batch_size, block_size, width, height))
-act = act.cuda()
+# act = act.cuda()
     '''
 
     setup_cpu_legacy = '''import torch
-from DSConv.nn.Activation import BFPQuant
+from DSConv.nn.bfp_quantization import BFPQuant
 
 number_blocks = 256
 batch_size = 256
@@ -75,9 +75,9 @@ height = 3
 m_bits = 3
 func_act = BFPQuant.apply
 act = 2*torch.randn((number_blocks, batch_size, block_size, width, height))
-act = act.cuda()
+# act = act.cuda()
     '''
-    timing = timeit.repeat("theo_activation(act)", setup=setup_cpu,  number=100)
+    timing = timeit.repeat("theo_activation(act)", setup=setup_cpu,  number=1)
     print("Theo Timing", timing)
-    timing = timeit.repeat("func_act(act, -127, 128, m_bits, -(2**m_bits-1), (2**m_bits -1))", setup=setup_cpu_legacy,  number=100)
+    timing = timeit.repeat("func_act(act, -127, 128, m_bits, -(2**m_bits-1), (2**m_bits -1))", setup=setup_cpu_legacy,  number=1)
     print("Legacy Timing", timing)

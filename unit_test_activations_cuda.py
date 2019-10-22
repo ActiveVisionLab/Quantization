@@ -1,4 +1,4 @@
-from DSConv.nn.Activation import BFPQuant
+from DSConv.nn.bfp_quantization import BFPQuant
 from src.bfpactivation import BFPActivation
 import torch
 from os import environ as env
@@ -15,11 +15,11 @@ if __name__ == "__main__":
     func_act = BFPQuant.apply
     theo_activation = BFPActivation(m_bits)
 
-    number_blocks = 32
+    number_blocks = 1
     batch_size = 128
     block_size = 32
-    width = 7
-    height = 7
+    width = 128
+    height = 128
 
     act = 2*torch.randn((number_blocks, batch_size, block_size, width, height))
 

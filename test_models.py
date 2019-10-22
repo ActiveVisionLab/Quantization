@@ -99,7 +99,7 @@ def test(model, batch_size=2048, num_workers=8, dataset_folder_path='/home/marce
     return correct1, correct5, total
 
 
-from DSConv.nn.DSConv2d import DSConv2d
+from DSConv.nn.dsconv2d import DSConv2d
 def counting_dsconv(model):
     count = 0
     for m in model.modules():
@@ -111,7 +111,7 @@ if __name__=="__main__":
     model = QuantizedResNet50(4, 32, pretrained=True)
     print(model)
     train(model)
-    correct1, correct5, total = test()
+    correct1, correct5, total = test(model)
     print(correct1/total, correct5/total)
 
 
