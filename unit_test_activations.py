@@ -1,7 +1,6 @@
 from DSConv.nn.Activation import BFPQuant
 from src.bfpactivation import BFPActivation
 import torch
-import numpy as np
 from os import environ as env
 
 from prettytable import PrettyTable
@@ -61,6 +60,7 @@ height = 3
 m_bits = 3
 theo_activation = BFPActivation(m_bits)
 act = 2*torch.randn((number_blocks, batch_size, block_size, width, height))
+act = act.cuda()
     '''
 
     setup_cpu_legacy = '''import torch
@@ -75,6 +75,7 @@ height = 3
 m_bits = 3
 func_act = BFPQuant.apply
 act = 2*torch.randn((number_blocks, batch_size, block_size, width, height))
+act = act.cuda()
     '''
     timing = timeit.repeat("theo_activation(act)", setup=setup_cpu,  number=100)
     print("Theo Timing", timing)
