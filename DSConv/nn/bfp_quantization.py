@@ -1,31 +1,37 @@
+'''
+(c) Marcelo Genanri 2019
+Implementation of module that transforms a tensor to Block Floating Point (BFP).
+This requires the number of bits for the mantissa, exponent, and the block size.
+'''
 import math
-import time
-
 import torch
 import torch.nn as nn
-from torch.autograd import Function
 
-class BFPActivation_Legacy(nn.Module):
+class BFPActivationLegacy(nn.Module):
+    '''
+    Activation module that transforms normal tensor to BFP with block size of blk
+    This is legacy as this will (hopefully) run slower than theo's version.
+    '''
     def __init__(self, mantissa, exponent, blk):
-        super(BFPActivation_Legacy, self).__init__()
-        self.e = exponent
-        self.m = mantissa
+        super(BFPActivationLegacy, self).__init__()
+        self.exp = exponent
+        self.mts = mantissa
         self.blk = blk
-        self.max = 2**(self.e-1)-1
-        self.min = -2**(self.e-1)
-        if self.m is not None:
-            self.min_m = -(2**self.m)+1
-            self.max_m = (2**self.m)-1
+        self.max = 2**(self.exp-1)-1
+        self.min = -2**(self.exp-1)
+        if self.mts is not None:
+            self.min_m = -(2**self.mts)+1
+            self.max_m = (2**self.mts)-1
 
         self.__quantize__ = BFPQuant.apply
 
     def extra_repr(self):
-        s = ('exponent={e}, mantissa={m}, block_size={blk}')
-        return s.format(**self.__dict__)
+        repr_str = ('exponent={e}, mantissa={m}, block_size={blk}')
+        return repr_str.format(**self.__dict__)
 
     def forward(self, inp):
         # if bit is None, then use FP32
-        if self.m is None:
+        if self.mts is None:
             return inp
 
         shp = inp.shape
@@ -42,7 +48,7 @@ class BFPActivation_Legacy(nn.Module):
         inp = torch.unsqueeze(inp, 0)
         inp = torch.reshape(inp, (number_of_blocks, shp[0], self.blk, shp[2], shp[3]))
 
-        inp = self.__quantize__(inp, self.min, self.max, self.m, self.min_m, self.max_m)
+        inp = self.__quantize__(inp, self.min, self.max, self.mts, self.min_m, self.max_m)
         inp = torch.reshape(inp, (1, shp[0], shp[1]+pad_val, shp[2], shp[3]))
 
         inp = inp[0, :shp[0], :shp[1], ...]
@@ -50,7 +56,11 @@ class BFPActivation_Legacy(nn.Module):
 
 
 class BFPQuant(torch.autograd.Function):
-
+    '''
+    Activation function that transforms normal tensor to BFP with block size of blk
+    This is also legacy as this will (hopefully) run slower than theo's version.
+    Note that this is using the Straight-Through Operator for the backward function
+    '''
     @staticmethod
     def __to_exponent_mantissa_width__(inp, max_log, mantissa_bitwidth, min_mantissa, max_mantissa):
         shp = inp.shape
@@ -77,11 +87,14 @@ class BFPQuant(torch.autograd.Function):
     @staticmethod
     def forward(ctx, inp, min_e, max_e, mantissa_bit, min_m, max_m):
         max_exponent = BFPQuant.__find_exponent__(inp, min_e, max_e)
-        quantized_act = BFPQuant.__to_exponent_mantissa_width__(inp, max_exponent, mantissa_bit, min_m, max_m)
+        quantized_act = BFPQuant.__to_exponent_mantissa_width__(inp,
+                                                                max_exponent,
+                                                                mantissa_bit,
+                                                                min_m,
+                                                                max_m)
         return quantized_act
 
     @staticmethod
     def backward(ctx, grad):
         # STE Gradient
         return grad, None, None, None, None, None
-

@@ -1,10 +1,12 @@
-# Other
-import math
+'''
+(c) Marcelo Genanri 2019
+Implementation of torch.autograd.Function that transforms Conv weight into DSConv.
 
+The backward pass is using the Straight-Through Estimator (STE) such that the fp32
+weights can be updated using full precision.
+'''
 # Pytorch
 import torch
-import torch.nn as nn
-
 
 class DSConvQuant(torch.autograd.Function):
 
@@ -17,15 +19,15 @@ class DSConvQuant(torch.autograd.Function):
         return final_block, alpha
 
     @staticmethod
-    def quant_blk(blcknump, minV, maxV):
+    def quant_blk(blcknump, min_v, max_v):
         absblcknump = torch.abs(blcknump)
-        _, indexPos = torch.max(absblcknump, dim=1)
-        absmax = torch.gather(blcknump, 1, indexPos.unsqueeze(1))
+        _, index_pos = torch.max(absblcknump, dim=1)
+        absmax = torch.gather(blcknump, 1, index_pos.unsqueeze(1))
 
-        scaling = minV/absmax
+        scaling = min_v/absmax
 
         scaled_blck = torch.round(scaling*blcknump)
-        scaled_blck = torch.clamp(scaled_blck, min=minV, max=maxV)
+        scaled_blck = torch.clamp(scaled_blck, min=min_v, max=max_v)
 
         final_block, alpha = DSConvQuant.__finding_alpha__(blcknump, scaled_blck)
 
@@ -44,19 +46,21 @@ class DSConvQuant(torch.autograd.Function):
             return tensor, intw, alpha
 
         blk = block_size
-        minV = -1*pow(2, bit-1)
-        maxV = pow(2, bit-1)-1
+        min_v = -1*pow(2, bit-1)
+        max_v = pow(2, bit-1)-1
 
 
         for i in range(number_blocks):
             if i == number_blocks-1:
                 (tensor[:, i*blk:, ...],
-                intw[:, i*blk:, ...],
-                alpha[:, i, ...]) = DSConvQuant.quant_blk(tensor[:, i*blk:, ...], minV, maxV)
+                 intw[:, i*blk:, ...],
+                 alpha[:, i, ...]) = \
+                 DSConvQuant.quant_blk(tensor[:, i*blk:, ...], min_v, max_v)
             else:
                 (tensor[:, i*blk:(1+i)*blk, ...],
-                intw[:, i*blk:(1+i)*blk, ...],
-                alpha[:, i, ...]) = DSConvQuant.quant_blk(tensor[:, i*blk:(1+i)*blk, ...], minV, maxV)
+                 intw[:, i*blk:(1+i)*blk, ...],
+                 alpha[:, i, ...]) = \
+                 DSConvQuant.quant_blk(tensor[:, i*blk:(1+i)*blk, ...], min_v, max_v)
 
         return tensor, intw, alpha
 
@@ -64,4 +68,3 @@ class DSConvQuant(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_weight, grad_int, grad_alpha):
         return grad_weight, None, None, None
-

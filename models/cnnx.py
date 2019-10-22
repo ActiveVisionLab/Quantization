@@ -1,8 +1,14 @@
-from DSConv.nn.DSConv2d import DSConv2d
-from DSConv.nn.Activation import BFPActivation
-from DSConv.nn.QuantizedModule import QuantizedModule
+'''
+(c) Marcelo Genanri 2019
+Implementation of cnnx (test cnn) to train Block Floating Point (BFP) and DSConv
+using CIFAR10 dataset.
+'''
 import torch
 import torch.nn.functional as F
+
+from DSConv.nn.dsconv2d import DSConv2d
+from DSConv.nn.bfp_quantization import BFPActivationLegacy as BFPActivation
+from DSConv.nn.quantized_module import QuantizedModule
 
 class BaseConv(torch.nn.Module):
     def __init__(self, in_planes, out_planes, kernel, block_size, bit, **kwargs):
@@ -61,8 +67,5 @@ class CNNX(QuantizedModule):
         return x
 
 class CNN10(CNNX):
+    ''' Defines CNNX for 10 layers '''
     number_bits = 10
-
-    def __init__(self, bits):
-        super(CNN10, self).__init__(bits)
-

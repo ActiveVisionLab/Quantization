@@ -1,4 +1,4 @@
-from DSConv.nn.Activation import BFPQuant
+from DSConv.nn.bfp_quantization import BFPQuant
 from src.bfpactivation import BFPActivation
 import torch
 import numpy as np

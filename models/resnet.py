@@ -1,10 +1,14 @@
+'''
+(c) Marcelo Genanri 2019
+ResNet module adapted from the original pytorch file in order to use DSConv
+'''
 import torch
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 
-from DSConv.nn.DSConv2d import DSConv2d
-from DSConv.nn.Activation import BFPActivation_Legacy as BFPActivation
-from DSConv.nn.QuantizedModule import QuantizedModule
+from DSConv.nn.dsconv2d import DSConv2d
+from DSConv.nn.bfp_quantization import BFPActivationLegacy as BFPActivation
+from DSConv.nn.quantized_module import QuantizedModule
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
