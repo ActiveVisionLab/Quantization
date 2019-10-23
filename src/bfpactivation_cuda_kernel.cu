@@ -43,7 +43,7 @@ __global__ void forward_kernel(
         // max in neighborhood
         uint32_t *data = new uint32_t[C];
         for (int32_t c = 0; c < C; c++) {
-            memcpy(&data[c], &activations[n][b][c][w][h], sizeof data);
+            memcpy(&data[c], &activations[n][b][c][w][h], sizeof(uint32_t));
             uint32_t e = data[c] & EXP_MAGIC_NUM;
             if (e > max_e) {
                 max_e = e;
