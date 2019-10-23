@@ -20,6 +20,16 @@ class QuantizedModule(torch.nn.Module):
             assert number_bits == len(bits)
             self.bits = bits
 
+    @classmethod
+    def get_number_layers(cls):
+        ''' Returns Number of Layers of this class'''
+        return cls.number_bits
+
+    @classmethod
+    def get_original_accuracy(cls):
+        ''' Returns original top1 and top5 accuracy of this class'''
+        return cls.top1, cls.top5
+
     def forward(self, *inp):
         raise NotImplementedError
 
