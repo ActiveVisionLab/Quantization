@@ -23,7 +23,7 @@ if __name__ == "__main__":
     act = torch.randn((batch_size, block_size*number_blocks, width, height))
 
     sol = func_act(act)
-    sol_theo = theo_activation(act.cuda()).cpu()
+    sol_theo = theo_activation(act).cpu()
 
     x = PrettyTable()
     col_names = ["orig", "cpp", "pytorch", "error"]

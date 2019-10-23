@@ -20,7 +20,7 @@ def train(model, batch_size=240, num_workers=8, dataset_folder_path='/home/marce
         pin_memory=True
     )
 
-    if torch.cuda.device_count()>1:
+    if torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
         device = torch.device("cuda:0" if torch.cuda.is_available else "cpu")
     else:
@@ -73,7 +73,7 @@ def test(model, batch_size=2048, num_workers=8, dataset_folder_path='/home/marce
         pin_memory = True
     )
 
-    if torch.cuda.device_count()>1:
+    if torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
         device = torch.device("cuda:0" if torch.cuda.is_available else "cpu")
     else:
