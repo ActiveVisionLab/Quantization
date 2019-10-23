@@ -9,6 +9,8 @@
 
 #include <vector>
 
+#define MAX_BLOCK_SIZE 32
+
 #define SIG_MAGIC_NUM 0x80000000
 #define EXP_MAGIC_NUM 0x7f800000
 #define MAN_MAGIC_NUM 0x007fffff
@@ -40,8 +42,8 @@ __global__ void forward_kernel(
 
     for (int32_t n = 0; n < N; n++) {
         uint32_t max_e = 0;
+        uint32_t data[MAX_BLOCK_SIZE]; // Hardcoded limit to block size.
         // max in neighborhood
-        uint32_t *data = new uint32_t[C];
         for (int32_t c = 0; c < C; c++) {
             memcpy(&data[c], &activations[n][b][c][w][h], sizeof(uint32_t));
             uint32_t e = data[c] & EXP_MAGIC_NUM;
@@ -100,7 +102,6 @@ __global__ void forward_kernel(
             }
             output[n][b][c][w][h] = f_out;
         }
-        delete[] data;
     }
 }
 } // namespace

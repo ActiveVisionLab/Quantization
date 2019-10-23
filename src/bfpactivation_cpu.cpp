@@ -3,6 +3,8 @@
 
 #include <vector>
 
+#define MAX_BLOCK_SIZE 32
+
 #define SIG_MAGIC_NUM 0x80000000
 #define EXP_MAGIC_NUM 0x7f800000
 #define MAN_MAGIC_NUM 0x007fffff
@@ -23,8 +25,8 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
             for (int32_t w = 0; w < W; w++) {
                 for (int32_t h = 0; h < H; h++) {
                     uint32_t max_e = 0;
+                    uint32_t data[MAX_BLOCK_SIZE]; // Hardcoded limit to block size.
                     // max in neighborhood
-                    uint32_t *data = new uint32_t[C];
                     for (int32_t c = 0; c < C; c++) {
                         std::memcpy(&data[c], &activations[n][b][c][w][h], sizeof(uint32_t));
                         uint32_t e = data[c] & EXP_MAGIC_NUM;
@@ -84,7 +86,6 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                         }
                         output[n][b][c][w][h] = f_out;
                     }
-                    delete[] data;
                 }
             }
         }
