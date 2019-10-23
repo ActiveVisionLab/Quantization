@@ -83,8 +83,8 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                                         : -pow(2, (((int32_t)max_e >> 23)) - 127);
                         }
                         output[n][b][c][w][h] = f_out;
-                        // delete[] data;
                     }
+                    delete[] data;
                 }
             }
         }
