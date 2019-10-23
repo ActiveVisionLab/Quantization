@@ -31,8 +31,8 @@ __global__ void forward_kernel(
     const int32_t N = activations.size(0);
     const int32_t B = activations.size(1);
     const int32_t C = activations.size(2);
-    const int32_t H = activations.size(3);
-    const int32_t W = activations.size(4);
+    const int32_t W = activations.size(3);
+    const int32_t H = activations.size(4);
 
     if ((w >= W) | (h >= H) | (b >= B)) {
         return;
@@ -99,7 +99,7 @@ __global__ void forward_kernel(
                             : -pow(2, (((int32_t)(max_e >> 23))) - 127);
             }
             output[n][b][c][w][h] = f_out;
-            delete data;
+            // delete[] data;
         }
     }
 }
@@ -111,10 +111,10 @@ std::vector<at::Tensor> bfpactivation_cuda_forward(const torch::Tensor activatio
     const int32_t N = activations.size(0);
     const int32_t B = activations.size(1);
     const int32_t C = activations.size(2);
-    const int32_t H = activations.size(3);
-    const int32_t W = activations.size(4);
+    const int32_t W = activations.size(3);
+    const int32_t H = activations.size(4);
 
-    auto output = torch::zeros({N, B, C, H, W},
+    auto output = torch::zeros({N, B, C, W, H},
                                torch::dtype(activations.dtype()).device(activations.device()));
 
     // Generate some more magic numbers that cant be known at compile time.
