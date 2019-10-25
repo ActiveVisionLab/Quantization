@@ -6,10 +6,10 @@ import torch
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 
-from DSConv.nn.dsconv2d import DSConv2d
+from ..DSConv.nn.dsconv2d import DSConv2d
 #from DSConv.nn.bfp_quantization import BFPActivationLegacy as BFPActivation
-from src.bfpactivation import BFPActivation
-from DSConv.nn.quantized_module import QuantizedModule
+from ..src.bfpactivation import BFPActivation
+from ..DSConv.nn.quantized_module import QuantizedModule
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -243,6 +243,8 @@ class QuantizedResNet18(ResNet):
 
 class QuantizedResNet34(ResNet):
     number_bits = 36
+    top1 = 73.3
+    top5 = 91.42
     def __init__(self, bits, block_size, pretrained=False, progress=False, **kwargs):
         super(QuantizedResNet34, self).__init__(BasicBlock, [3, 4, 6, 3], bits, self.number_bits, **kwargs)
         if pretrained:

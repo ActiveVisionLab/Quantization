@@ -4,7 +4,7 @@ Parent class of modules that should be quantized.
 This does not influence on the torch.nn.Module capabilities (no major overridden methods)
 '''
 import torch
-from DSConv.nn.dsconv2d import DSConv2d
+from .dsconv2d import DSConv2d
 
 
 class QuantizedModule(torch.nn.Module):
