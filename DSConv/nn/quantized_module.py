@@ -43,7 +43,9 @@ class QuantizedModule(torch.nn.Module):
         '''
         Returns dictionary (just like state_dict) of quantized weights.
         For now works only for bits < 8. It is optimized for bits = 4 and bits = 2
-        because of uint8 packaging.
+        because of uint8 packaging. 
+        Bits = 3 will have the same packaging as bits = 4
+        Bits = 5, 6, 7 will have the same packaging as bits = 8.
 
         The alpha value of all convolutions (except the first one) is set to float16.
         (This is because when the first one is set to float16 for some reason accuracy
@@ -56,7 +58,7 @@ class QuantizedModule(torch.nn.Module):
                 _state_dict_quant_[name + '.alpha'] = mod.alpha.to(dtype=torch.float) if first \
                                                       else mod.alpha.to(dtype=torch.half)
                 first = False
-                if bits == 4:
+                if bits == 4 or bits == 3:
                     _state_dict_quant_[name + '.intw'] = self.__compress_to_4_bits__(mod)
                 elif bits == 2:
                     _state_dict_quant_[name + '.intw'] = self.__compress_to_2_bits__(mod)
@@ -80,6 +82,8 @@ class QuantizedModule(torch.nn.Module):
         '''
         Used to load the state_dict (just like torch.Tensor.load_state_dict()),
         which was saved using state_dict_quant
+        Note that for bits = 2 and bits = 4 this is optimal.
+        For bits = 3
         '''
         for name, mod in self.named_modules():
             if isinstance(mod, DSConv2d):
