@@ -1,8 +1,10 @@
 from models.resnet import QuantizedResNet18, QuantizedResNet34, QuantizedResNet50, QuantizedResNet101, QuantizedResNet152
+from models.vgg import QuantizedVGG11, QuantizedVGG11_bn, QuantizedVGG13, QuantizedVGG13_bn, QuantizedVGG16, QuantizedVGG16_bn, QuantizedVGG19, QuantizedVGG19_bn
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torch
 from tqdm import tqdm
+import random
 
 def train(model, batch_size=240, num_workers=8, dataset_folder_path='/home/marcelo/datasets/ILSVRC2012/ILSVRC2012_train'):
     transform = transforms.Compose([
@@ -108,15 +110,13 @@ def counting_dsconv(model):
     return count
 
 if __name__=="__main__":
-    model = QuantizedResNet50(4, 32, pretrained=True)
+    # model = QuantizedResNet50(4, 32, pretrained=True)
+    bits = [random.randint(2, 8) for i in range(QuantizedVGG11_bn.number_bits)]
+    print(bits)
+    input('')
+    model = QuantizedVGG11_bn(bits, 32, pretrained=True)
     print(model)
+    input('')
     train(model)
     correct1, correct5, total = test(model)
     print(correct1/total, correct5/total)
-
-
-
-
-
-
-

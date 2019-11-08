@@ -7,7 +7,6 @@ import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 
 from ..DSConv.nn.dsconv2d import DSConv2d
-#from DSConv.nn.bfp_quantization import BFPActivationLegacy as BFPActivation
 from ..src.bfpactivation import BFPActivation
 from ..DSConv.nn.quantized_module import QuantizedModule
 
@@ -254,6 +253,8 @@ class QuantizedResNet34(ResNet):
 
 class QuantizedResNet50(ResNet):
     number_bits = 53
+    top1 = 76.15
+    top5 = 92.87
     def __init__(self, bits, block_size, pretrained=False, progress=False, **kwargs):
         super(QuantizedResNet50, self).__init__(Bottleneck, [3, 4, 6, 3], bits, self.number_bits, **kwargs)
         if pretrained:
