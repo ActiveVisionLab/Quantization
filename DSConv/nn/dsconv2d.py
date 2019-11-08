@@ -35,11 +35,8 @@ class DSConv2d(_ConvNd):
         self.blk = block_size
 
         # If bit is None, then the layer should be FP32
-        self.bit = bit
-        if bit is not None:
-            self.min_v = -1*pow(2, bit-1)
-            self.max_v = pow(2, bit-1)-1
-
+        self.update_bit(bit)
+        
         self.alpha = torch.Tensor(out_channels, self.nmb_blk, *kernel_size)
         self.intw = torch.Tensor(self.weight.size())
         self.quant_w = torch.Tensor(out_channels, in_channels, *kernel_size)
@@ -49,6 +46,12 @@ class DSConv2d(_ConvNd):
     def extra_repr(self):
         repr_str = super(DSConv2d, self).extra_repr() + ', block_size={blk}, bit={bit}'
         return repr_str.format(**self.__dict__)
+
+    def update_bit(self, bit):
+        self.bit = bit
+        if bit is not None:
+            self.min_v = -1*pow(2, bit-1)
+            self.max_v = pow(2, bit-1)-1
 
     def quantize(self):
         ''' Transforms fp32 weights to quant_w in DSConv style '''

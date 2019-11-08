@@ -111,10 +111,13 @@ def counting_dsconv(model):
 
 if __name__=="__main__":
     # model = QuantizedResNet50(4, 32, pretrained=True)
-    bits = [random.randint(2, 8) for i in range(QuantizedVGG11_bn.number_bits)]
+    bits = [random.randint(2, 8) for i in range(QuantizedResNet50.number_bits)]
+    bits2 = bits.copy()
     print(bits)
     input('')
-    model = QuantizedVGG11_bn(bits, 32, pretrained=True)
+    model = QuantizedResNet50(bits, 32, pretrained=True)
+    print(model)
+    model.update_bits(bits2)
     print(model)
     input('')
     train(model)

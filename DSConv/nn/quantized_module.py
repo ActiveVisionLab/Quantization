@@ -83,7 +83,6 @@ class QuantizedModule(torch.nn.Module):
         Used to load the state_dict (just like torch.Tensor.load_state_dict()),
         which was saved using state_dict_quant
         Note that for bits = 2 and bits = 4 this is optimal.
-        For bits = 3
         '''
         for name, mod in self.named_modules():
             if isinstance(mod, DSConv2d):

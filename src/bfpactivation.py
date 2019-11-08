@@ -43,10 +43,13 @@ class BFPActivation(nn.Module):
     def __init__(self, mantissa, exponent, blk):
         super(BFPActivation, self).__init__()
         self.exp = exponent
-        self.mts = mantissa
+        self.update_mantissa(mantissa)
         self.blk = blk
         self.max = 2**(self.exp-1)-1
         self.min = -2**(self.exp-1)
+
+    def update_mantissa(self, mantissa):
+        self.mts = mantissa
         if self.mts is not None:
             self.min_m = -(2**self.mts)+1
             self.max_m = (2**self.mts)-1

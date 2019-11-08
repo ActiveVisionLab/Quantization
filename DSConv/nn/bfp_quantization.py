@@ -15,19 +15,22 @@ class BFPActivationLegacy(nn.Module):
     def __init__(self, mantissa, exponent, blk):
         super(BFPActivationLegacy, self).__init__()
         self.exp = exponent
-        self.mts = mantissa
+        self.update_mantissa(mantissa)
         self.blk = blk
         self.max = 2**(self.exp-1)-1
         self.min = -2**(self.exp-1)
-        if self.mts is not None:
-            self.min_m = -(2**self.mts)+1
-            self.max_m = (2**self.mts)-1
 
         self.__quantize__ = BFPQuant.apply
 
     def extra_repr(self):
         repr_str = ('exponent={exp}, mantissa={mts}, block_size={blk}')
         return repr_str.format(**self.__dict__)
+
+    def update_mantissa(self, mantissa):
+        self.mts = mantissa
+        if self.mts is not None:
+            self.min_m = -(2**self.mts)+1
+            self.max_m = (2**self.mts)-1
 
     def forward(self, inp):
         # if bit is None, then use FP32

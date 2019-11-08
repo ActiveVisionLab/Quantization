@@ -36,7 +36,7 @@ class BasicBlock(nn.Module):
     __constants__ = ['downsample']
 
     def __init__(self, inplanes, planes, bits, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None, block_size=32):
+                 base_width=64, dilation=1, norm_layer=None, block_size=32, final=False):
         super(BasicBlock, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -46,15 +46,26 @@ class BasicBlock(nn.Module):
             raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
         bit = bits.pop(0)
+        downsample_bit = bit
         self.conv1 = conv3x3(inplanes, planes, block_size, bit, stride)
+
+        bit = bits.pop(0)
         self.activation1 = BFPActivation(bit, 7, block_size)
         self.bn1 = norm_layer(planes)
         self.relu = nn.ReLU(inplace=True)
-        bit = bits.pop(0)
         self.conv2 = conv3x3(planes, planes, block_size, bit)
-        self.activation2 = BFPActivation(bit, 7, block_size)
+
+        if final:
+            self.seq = self.relu
+        else:
+            bit = bits[0]
+            self.activation2 = BFPActivation(bit, 7, block_size)
+            self.seq = nn.Sequential(self.relu, self.activation2)
         self.bn2 = norm_layer(planes)
         self.downsample = downsample
+        if downsample is not None:
+            self.downsample[0].update_bit(downsample_bit)
+
         self.stride = stride
 
     def forward(self, x):
@@ -72,8 +83,7 @@ class BasicBlock(nn.Module):
             identity = self.downsample(x)
 
         out += identity
-        out = self.relu(out)
-        out = self.activation2(out)
+        out = self.seq(out)
 
         return out
 
@@ -83,26 +93,39 @@ class Bottleneck(nn.Module):
     __constants__ = ['downsample']
 
     def __init__(self, inplanes, planes, bits, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None, block_size=32):
+                 base_width=64, dilation=1, norm_layer=None, block_size=32, final=False):
         super(Bottleneck, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         width = int(planes * (base_width / 64.)) * groups
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
         bit = bits.pop(0)
+        downsample_bit = bit
         self.conv1 = conv1x1(inplanes, width, block_size, bit)
+
+        bit = bits.pop(0)
         self.activation1 = BFPActivation(bit, 7, block_size)
         self.bn1 = norm_layer(width)
-        bit = bits.pop(0)
         self.conv2 = conv3x3(width, width, block_size, bit, stride, groups, dilation)
+
+        bit = bits.pop(0)
         self.activation2 = BFPActivation(bit, 7, block_size)
         self.bn2 = norm_layer(width)
-        bit = bits.pop(0)
         self.conv3 = conv1x1(width, planes * self.expansion, block_size, bit)
-        self.activation3 = BFPActivation(bit, 7, block_size)
         self.bn3 = norm_layer(planes * self.expansion)
         self.relu = nn.ReLU(inplace=True)
+
+        if final:
+            self.seq = self.relu
+        else:
+            bit = bits[0]
+            self.activation3 = BFPActivation(bit, 7, block_size)
+            self.seq = nn.Sequential(self.relu, self.activation2)
+
         self.downsample = downsample
+        if downsample is not None:
+            self.downsample[0].update_bit(downsample_bit)
+
         self.stride = stride
 
     def forward(self, x):
@@ -125,8 +148,7 @@ class Bottleneck(nn.Module):
             identity = self.downsample(x)
 
         out += identity
-        out = self.relu(out)
-        out = self.activation3(out)
+        out = self.seq(out)
 
         return out
 
@@ -152,12 +174,13 @@ class ResNet(QuantizedModule):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        bit = self.bits.pop(1)
+        bit = self.bits.pop(0)
         self.conv1 = DSConv2d(3, self.inplanes, kernel_size=7, block_size=32, bit=bit, stride=2, padding=3,
                                bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-        self.activation1 =BFPActivation(bit, 7, blk=32)
+        bit = self.bits[0]
+        self.activation1 = BFPActivation(bit, 7, blk=32)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
@@ -165,7 +188,7 @@ class ResNet(QuantizedModule):
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
-                                       dilate=replace_stride_with_dilation[2])
+                                       dilate=replace_stride_with_dilation[2], final=True)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
@@ -187,7 +210,7 @@ class ResNet(QuantizedModule):
                 elif isinstance(mod, BasicBlock):
                     nn.init.constant_(mod.bn2.weight, 0)
 
-    def _make_layer(self, block, planes, blocks, stride=1, dilate=False, block_size=32):
+    def _make_layer(self, block, planes, blocks, stride=1, dilate=False, block_size=32, final=False):
         norm_layer = self._norm_layer
         downsample = None
         previous_dilation = self.dilation
@@ -195,9 +218,8 @@ class ResNet(QuantizedModule):
             self.dilation *= stride
             stride = 1
         if stride != 1 or self.inplanes != planes * block.expansion:
-            bit = self.bits.pop(0)
             downsample = nn.Sequential(
-                conv1x1(self.inplanes, planes * block.expansion, block_size, bit, stride),
+                conv1x1(self.inplanes, planes * block.expansion, block_size, None, stride),
                 norm_layer(planes * block.expansion),
             )
 
@@ -205,12 +227,31 @@ class ResNet(QuantizedModule):
         layers.append(block(self.inplanes, planes, self.bits, stride, downsample, self.groups,
                             self.base_width, previous_dilation, norm_layer))
         self.inplanes = planes * block.expansion
-        for _ in range(1, blocks):
+        for i in range(1, blocks):
+            __final__ = False
+            if final and i == blocks-1:
+                __final__ = True
             layers.append(block(self.inplanes, planes, self.bits, groups=self.groups,
                                 base_width=self.base_width, dilation=self.dilation,
-                                norm_layer=norm_layer))
+                                norm_layer=norm_layer, final=__final__))
 
         return nn.Sequential(*layers)
+
+
+    def update_bits(self, bits):
+        for name, mod in self.named_modules():
+            if isinstance(mod, DSConv2d):
+                bit = bits.pop(0) if 'downsample' not in name else bit
+                if 'conv1' in name:
+                    downsample_bit = bit
+                if 'downsample' in name:
+                    mod.update_bit(downsample_bit)
+                else:
+                    mod.update_bit(bit)
+            if isinstance(mod, BFPActivation):
+                bit = bits[0]
+                mod.update_mantissa(bit)
+
 
     def forward(self, x):
         x = self.conv1(x)
@@ -232,7 +273,7 @@ class ResNet(QuantizedModule):
 
 
 class QuantizedResNet18(ResNet):
-    number_bits = 20
+    number_bits = 17
     def __init__(self, bits, block_size, pretrained=False, progress=False, **kwargs):
         super(QuantizedResNet18, self).__init__(BasicBlock, [2, 2, 2, 2], bits, self.number_bits, **kwargs)
         if pretrained:
@@ -241,7 +282,7 @@ class QuantizedResNet18(ResNet):
 
 
 class QuantizedResNet34(ResNet):
-    number_bits = 36
+    number_bits = 33
     top1 = 73.3
     top5 = 91.42
     def __init__(self, bits, block_size, pretrained=False, progress=False, **kwargs):
