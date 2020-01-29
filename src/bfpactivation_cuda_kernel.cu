@@ -43,6 +43,8 @@ forward_kernel(const torch::PackedTensorAccessor32<float, 4, torch::RestrictPtrT
     typedef cub::BlockReduce<uint32_t, block_size> BlockReduce;
     __shared__ typename BlockReduce::TempStorage temp_storage;
 
+    __shared__ uint32_t max_e;
+
     const int32_t N = activations.size(0);
     const int32_t W = activations.size(1);
     const int32_t H = activations.size(2);
@@ -57,72 +59,78 @@ forward_kernel(const torch::PackedTensorAccessor32<float, 4, torch::RestrictPtrT
 
     for (int32_t b = 0; b < blocks; b++) {
 
-        __syncthreads();
-
         int32_t c = c_block + b * block_size;
 
-        uint32_t data;
-        if (c >= C) {
-            data = 0;
-        } else {
+        uint32_t data = 0;
+        if (c < C) {
             // load data from gloabal memory
             memcpy(&data, &activations[n][w][h][c], sizeof(uint32_t));
         }
-        // Block reduce max
-        uint32_t max_e = BlockReduce(temp_storage).Reduce(data, cub::Max());
 
-        if (c >= C) {
-            continue;
-        }
-        // Extract the parts of the floating point number
-        uint32_t s = data & SIG_MAGIC_NUM;
         uint32_t e = data & EXP_MAGIC_NUM;
-        uint32_t m = data & MAN_MAGIC_NUM;
 
-        // calculate the required shift
-        uint32_t shift = (max_e - e) >> 23;
+        // Block reduce max
+        uint32_t result = BlockReduce(temp_storage).Reduce(e, cub::Max());
 
-        // convert into m form
-        uint32_t new_m = m | LEADING_1;
+        if (threadIdx.x == 0) {
+            max_e = result;
+        }
 
-        // shift the mantissa
-        new_m = new_m >> shift;
+        // TODO: investigate whether loading max_e into a thread register rather
+        // than reading from shared mem every time we need it is faster.
 
-        // round the value correctly (half LSB rounding)
-        new_m += round_num;
+        __syncthreads();
 
-        // correct if we round too far
-        if (new_m >> 24) {
-            new_m = m | LEADING_1;
+        if (c < C) {
+            // Extract the parts of the floating point number
+            uint32_t s = data & SIG_MAGIC_NUM;
+            uint32_t m = data & MAN_MAGIC_NUM;
+
+            // calculate the required shift
+            uint32_t shift = (max_e - e) >> 23;
+
+            // convert into m form
+            uint32_t new_m = m | LEADING_1;
+
+            // shift the mantissa
             new_m = new_m >> shift;
+
+            // round the value correctly (half LSB rounding)
+            new_m += round_num;
+
+            // correct if we round too far
+            if (new_m >> 24) {
+                new_m = m | LEADING_1;
+                new_m = new_m >> shift;
+            }
+
+            // truncate the mantissa
+            uint32_t trunc_m = new_m & trunc_num;
+
+            // build the quantised float
+            uint32_t out = s | max_e | trunc_m;
+
+            // put quantised float back into tensor
+            float f_out;
+            memcpy(&f_out, &out, sizeof out);
+
+            // correct back into 1+m form.
+            if ((shift == 1) && (new_m >> 23 == 1)) {
+                // This block catches the error when the rouding does the mantissa
+                // correction for us.
+                continue;
+            } else if (shift != 0) {
+                f_out +=
+                    // TODO: Find another way of doing this:
+                    // The problem with shift is that it doesn't allow for decimal
+                    // points i.e. if max_e = -1, we would have to shift 1 >> 1,
+                    // which is always 0.
+                    // and pow is a "slow" operation
+                    s >> 31 ? pow(2, (((int32_t)(max_e >> 23)) - 127))
+                            : -pow(2, (((int32_t)(max_e >> 23))) - 127);
+            }
+            output[n][w][h][c] = f_out;
         }
-
-        // truncate the mantissa
-        uint32_t trunc_m = new_m & trunc_num;
-
-        // build the quantised float
-        uint32_t out = s | max_e | trunc_m;
-
-        // put quantised float back into tensor
-        float f_out;
-        memcpy(&f_out, &out, sizeof out);
-
-        // correct back into 1+m form.
-        if ((shift == 1) && (new_m >> 23 == 1)) {
-            // This block catches the error when the rouding does the mantissa
-            // correction for us.
-            continue;
-        } else if (shift != 0) {
-            f_out +=
-                // TODO: Find another way of doing this:
-                // The problem with shift is that it doesn't allow for decimal
-                // points i.e. if max_e = -1, we would have to shift 1 >> 1,
-                // which is always 0.
-                // and pow is a "slow" operation
-                s >> 31 ? pow(2, (((int32_t)(max_e >> 23)) - 127))
-                        : -pow(2, (((int32_t)(max_e >> 23))) - 127);
-        }
-        output[n][w][h][c] = f_out;
     }
 }
 } // namespace
