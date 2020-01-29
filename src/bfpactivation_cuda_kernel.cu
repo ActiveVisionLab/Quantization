@@ -9,6 +9,16 @@
 
 #include <vector>
 
+#define gpuErrchk(ans)                                                                             \
+    { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true) {
+    if (code != cudaSuccess) {
+        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if (abort)
+            exit(code);
+    }
+}
+
 #define MAX_BLOCK_SIZE 32
 
 #define SIG_MAGIC_NUM 0x80000000
@@ -135,6 +145,8 @@ std::vector<at::Tensor> bfpactivation_cuda_forward(const torch::Tensor activatio
                 output.packed_accessor<float, 5, torch::RestrictPtrTraits, size_t>(), m_bits,
                 trunc_num, round_num);
         }));
+    gpuErrchk(cudaDeviceSynchronize());
+    gpuErrchk(cudaPeekAtLastError());
 
     return {output};
 }
