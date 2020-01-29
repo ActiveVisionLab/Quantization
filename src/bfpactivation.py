@@ -10,10 +10,10 @@ from . import bfpactivation_cuda
 
 class BFPActivationFunctionGPU(Function):
     @staticmethod
-    def forward(ctx, activations, mantissa_bits):
+    def forward(ctx, activations, mantissa_bits, blk):
         # TODO permute activations to put C in last dim
         activations = activations.permute(0, 2, 3, 1).contiguous()
-        outputs = bfpactivation_cuda.forward(activations, mantissa_bits)
+        outputs = bfpactivation_cuda.forward(activations, mantissa_bits, blk)
 
         output = outputs[0]
         output = output.permute(0, 3, 1, 2).contiguous()
@@ -27,9 +27,9 @@ class BFPActivationFunctionGPU(Function):
 
 class BFPActivationFunctionCPU(Function):
     @staticmethod
-    def forward(ctx, activations, mantissa_bits=3):
+    def forward(ctx, activations, mantissa_bits, blk):
         activations = activations.permute(0, 2, 3, 1).contiguous()
-        outputs = bfpactivation_cpu.forward(activations, mantissa_bits)
+        outputs = bfpactivation_cpu.forward(activations, mantissa_bits, blk)
 
         output = outputs[0]
         output = output.permute(0, 3, 1, 2).contiguous()
@@ -43,15 +43,20 @@ class BFPActivationFunctionCPU(Function):
 
 
 class BFPActivation(nn.Module):
-    def __init__(self, mantissa_bits=3):
+    def __init__(self, mantissa_bits, blk):
         super(BFPActivation, self).__init__()
         self.mantissa_bits = mantissa_bits
+        self.blk = blk
 
     def forward(self, activations):
         if activations.is_cuda:
             pass
-            return BFPActivationFunctionGPU.apply(activations, self.mantissa_bits)
+            return BFPActivationFunctionGPU.apply(
+                activations, self.mantissa_bits, self.blk
+            )
         elif not activations.is_cuda:
-            return BFPActivationFunctionCPU.apply(activations, self.mantissa_bits)
+            return BFPActivationFunctionCPU.apply(
+                activations, self.mantissa_bits, self.blk
+            )
         else:
             raise RuntimeError("All tensors not cuda or cpu tensors.")
