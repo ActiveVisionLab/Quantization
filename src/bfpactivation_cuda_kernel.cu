@@ -48,11 +48,14 @@ forward_kernel(const torch::PackedTensorAccessor32<float, 4, torch::RestrictPtrT
     const int32_t H = activations.size(2);
     const int32_t C = activations.size(3);
 
+    // Faster integer division round up with overflow minimisation
+    const int32_t blocks = 1 + ((C - 1) / block_size);
+
     if ((w >= W) | (h >= H) | (n >= N)) {
         return;
     }
 
-    for (int32_t b = 0; b < block_size; b++) {
+    for (int32_t b = 0; b < blocks; b++) {
 
         __syncthreads();
 
