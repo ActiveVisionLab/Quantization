@@ -1,3 +1,6 @@
+# (c) Theo Costain 2020
+from getpass import getuser
+
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CppExtension
 import sysconfig
@@ -16,7 +19,7 @@ nvcc_extra_args = [
     "-O2",
     "--gpu-architecture=sm_61",
     "-lineinfo",
-    "-I/home/marcelo/libs/cub-1.8.0",
+    f"-I/home/{getuser()}/libs/cub-1.8.0",
 ]
 
 setup(
