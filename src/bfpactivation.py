@@ -1,4 +1,4 @@
-# (c) Theo Costain 2019
+# (c) Theo Costain 2020
 """Tensorflow op performing flex convolution operation."""
 
 from torch import nn
@@ -11,9 +11,12 @@ from . import bfpactivation_cuda
 class BFPActivationFunctionGPU(Function):
     @staticmethod
     def forward(ctx, activations, mantissa_bits):
+        # TODO permute activations to put C in last dim
+        activations = activations.permute(0, 2, 3, 1).contiguous()
         outputs = bfpactivation_cuda.forward(activations, mantissa_bits)
 
         output = outputs[0]
+        output = output.permute(0, 3, 1, 2).contiguous()
 
         return output
 
