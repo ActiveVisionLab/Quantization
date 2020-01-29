@@ -1,4 +1,5 @@
 // (c) Theo Costain 2020
+#include <iostream>
 #include <torch/extension.h>
 
 #include <vector>
@@ -15,31 +16,49 @@ template <typename scalar_t>
 void forward(const torch::TensorAccessor<float, 4> activations, const uint32_t trunc_num,
              const uint32_t round_num, torch::TensorAccessor<float, 4> output, int32_t block_size) {
     const int32_t N = activations.size(0);
-    const int32_t H = activations.size(1);
-    const int32_t W = activations.size(2);
+    const int32_t W = activations.size(1);
+    const int32_t H = activations.size(2);
     const int32_t C = activations.size(3);
+
+    // Faster integer division round up with overflow minimisation
+    const int32_t blocks = 1 + ((C - 1) / block_size);
 
     for (int32_t n = 0; n < N; n++) {
         for (int32_t w = 0; w < W; w++) {
             for (int32_t h = 0; h < H; h++) {
-                for (int32_t b = 0; b < block_size; b++) {
+                for (int32_t b = 0; b < blocks; b++) {
+                    std::cout << "Called this " << std::endl;
+                    std::cout << n << " " << w << " " << h << " " << std::endl;
                     uint32_t max_e = 0;
                     uint32_t data[MAX_BLOCK_SIZE]; // Hardcoded limit to block size.
+                    std::cout << "Called this 2" << std::endl;
                     // max in neighborhood
-                    for (int32_t c_block = 0; c_block < C; c_block++) {
+                    for (int32_t c_block = 0; c_block < block_size; c_block++) {
                         int32_t c = c_block + b * block_size;
-                        std::memcpy(&data[c], &activations[n][w][h][c], sizeof(uint32_t));
-                        uint32_t e = data[c] & EXP_MAGIC_NUM;
+                        std::cout << "Little c" << c << std::endl;
+                        std::cout << C << std::endl;
+                        if (c >= C) {
+                            continue;
+                        }
+                        std::memcpy(&data[c_block], &activations[n][w][h][c], sizeof(uint32_t));
+                        uint32_t e = data[c_block] & EXP_MAGIC_NUM;
                         if (e > max_e) {
                             max_e = e;
                         }
                     }
-                    for (int32_t c_block = 0; c_block < C; c_block++) {
+
+                    std::cout << "Called this 3" << std::endl;
+                    for (int32_t c_block = 0; c_block < block_size; c_block++) {
                         int32_t c = c_block + b * block_size;
+                        if (c >= C) {
+                            continue;
+                        }
                         // Extract the parts of the floating point number
-                        uint32_t s = data[c] & SIG_MAGIC_NUM;
-                        uint32_t e = data[c] & EXP_MAGIC_NUM;
-                        uint32_t m = data[c] & MAN_MAGIC_NUM;
+                        uint32_t s = data[c_block] & SIG_MAGIC_NUM;
+                        uint32_t e = data[c_block] & EXP_MAGIC_NUM;
+                        uint32_t m = data[c_block] & MAN_MAGIC_NUM;
+
+                        std::cout << "Called this 4" << std::endl;
 
                         // calculate the required shift
                         uint32_t shift = (max_e - e) >> 23;
@@ -68,6 +87,7 @@ void forward(const torch::TensorAccessor<float, 4> activations, const uint32_t t
                         // put quantised float back into tensor
                         float f_out;
                         std::memcpy(&f_out, &out, sizeof out);
+                        std::cout << "Called this 5" << std::endl;
 
                         // correct back into 1+m form.
                         if ((shift == 1) && (new_m >> 23 == 1)) {
@@ -85,7 +105,12 @@ void forward(const torch::TensorAccessor<float, 4> activations, const uint32_t t
                                 s >> 31 ? pow(2, (((int32_t)(max_e >> 23)) - 127))
                                         : -pow(2, (((int32_t)(max_e >> 23))) - 127);
                         }
+                        std::cout << c << std::endl;
+                        std::cout << n << " " << w << " " << h << " " << c << std::endl;
+                        std::cout << "Called this 6" << std::endl;
+                        std::cout << output[0][0][0][0] << std::endl;
                         output[n][w][h][c] = f_out;
+                        std::cout << "Called this 7" << std::endl;
                     }
                 }
             }
