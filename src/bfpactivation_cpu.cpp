@@ -3,6 +3,8 @@
 
 #include <vector>
 
+#define MAX_BLOCK_SIZE 32
+
 #define SIG_MAGIC_NUM 0x80000000
 #define EXP_MAGIC_NUM 0x7f800000
 #define MAN_MAGIC_NUM 0x007fffff
@@ -23,24 +25,20 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
             for (int32_t w = 0; w < W; w++) {
                 for (int32_t h = 0; h < H; h++) {
                     uint32_t max_e = 0;
+                    uint32_t data[MAX_BLOCK_SIZE]; // Hardcoded limit to block size.
                     // max in neighborhood
                     for (int32_t c = 0; c < C; c++) {
-                        uint32_t data;
-                        std::memcpy(&data, &activations[n][b][c][w][h], sizeof data);
-                        uint32_t e = data & EXP_MAGIC_NUM;
+                        std::memcpy(&data[c], &activations[n][b][c][w][h], sizeof(uint32_t));
+                        uint32_t e = data[c] & EXP_MAGIC_NUM;
                         if (e > max_e) {
                             max_e = e;
                         }
                     }
                     for (int32_t c = 0; c < C; c++) {
-                        // Load data from tensor
-                        uint32_t data;
-                        std::memcpy(&data, &activations[n][b][c][w][h], sizeof data);
-
                         // Extract the parts of the floating point number
-                        uint32_t s = data & SIG_MAGIC_NUM;
-                        uint32_t e = data & EXP_MAGIC_NUM;
-                        uint32_t m = data & MAN_MAGIC_NUM;
+                        uint32_t s = data[c] & SIG_MAGIC_NUM;
+                        uint32_t e = data[c] & EXP_MAGIC_NUM;
+                        uint32_t m = data[c] & MAN_MAGIC_NUM;
 
                         // calculate the required shift
                         uint32_t shift = (max_e - e) >> 23;
@@ -67,7 +65,8 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                         uint32_t out = s | max_e | trunc_m;
 
                         // put quantised float back into tensor
-                        std::memcpy(&output[n][b][c][w][h], &out, sizeof out);
+                        float f_out;
+                        std::memcpy(&f_out, &out, sizeof out);
 
                         // correct back into 1+m form.
                         if ((shift == 1) && (new_m >> 23 == 1)) {
@@ -75,7 +74,7 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                             // correction for us.
                             continue;
                         } else if (shift != 0) {
-                            output[n][b][c][w][h] +=
+                            f_out +=
                                 // TODO: Find another way of doing this:
                                 // The problem with shift is that it doesn't allow for decimal
                                 // points i.e. if max_e = -1, we would have to shift 1 >> 1,
@@ -85,6 +84,7 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                                 s >> 31 ? pow(2, (((int32_t)(max_e >> 23)) - 127))
                                         : -pow(2, (((int32_t)(max_e >> 23))) - 127);
                         }
+                        output[n][b][c][w][h] = f_out;
                     }
                 }
             }

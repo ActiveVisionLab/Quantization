@@ -1,11 +1,25 @@
 // (c) Theo Costain 2019
 
-#include <torch/extension.h>
+// This was not compiling with extension.h on anubis5 with cuda 9. This is supposed to fix it.
+#include <torch/types.h>
+// #include <torch/extension.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
 
 #include <vector>
+
+#define gpuErrchk(ans)                                                                             \
+    { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true) {
+    if (code != cudaSuccess) {
+        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if (abort)
+            exit(code);
+    }
+}
+
+#define MAX_BLOCK_SIZE 32
 
 #define SIG_MAGIC_NUM 0x80000000
 #define EXP_MAGIC_NUM 0x7f800000
@@ -29,8 +43,8 @@ __global__ void forward_kernel(
     const int32_t N = activations.size(0);
     const int32_t B = activations.size(1);
     const int32_t C = activations.size(2);
-    const int32_t H = activations.size(3);
-    const int32_t W = activations.size(4);
+    const int32_t W = activations.size(3);
+    const int32_t H = activations.size(4);
 
     if ((w >= W) | (h >= H) | (b >= B)) {
         return;
@@ -38,24 +52,20 @@ __global__ void forward_kernel(
 
     for (int32_t n = 0; n < N; n++) {
         uint32_t max_e = 0;
+        uint32_t data[MAX_BLOCK_SIZE]; // Hardcoded limit to block size.
         // max in neighborhood
         for (int32_t c = 0; c < C; c++) {
-            uint32_t data;
-            memcpy(&data, &activations[n][b][c][w][h], sizeof data);
-            uint32_t e = data & EXP_MAGIC_NUM;
+            memcpy(&data[c], &activations[n][b][c][w][h], sizeof(uint32_t));
+            uint32_t e = data[c] & EXP_MAGIC_NUM;
             if (e > max_e) {
                 max_e = e;
             }
         }
         for (int32_t c = 0; c < C; c++) {
-            // Load data from tensor
-            uint32_t data;
-            memcpy(&data, &activations[n][b][c][w][h], sizeof data);
-
             // Extract the parts of the floating point number
-            uint32_t s = data & SIG_MAGIC_NUM;
-            uint32_t e = data & EXP_MAGIC_NUM;
-            uint32_t m = data & MAN_MAGIC_NUM;
+            uint32_t s = data[c] & SIG_MAGIC_NUM;
+            uint32_t e = data[c] & EXP_MAGIC_NUM;
+            uint32_t m = data[c] & MAN_MAGIC_NUM;
 
             // calculate the required shift
             uint32_t shift = (max_e - e) >> 23;
@@ -82,7 +92,8 @@ __global__ void forward_kernel(
             uint32_t out = s | max_e | trunc_m;
 
             // put quantised float back into tensor
-            memcpy(&output[n][b][c][w][h], &out, sizeof out);
+            float f_out;
+            memcpy(&f_out, &out, sizeof out);
 
             // correct back into 1+m form.
             if ((shift == 1) && (new_m >> 23 == 1)) {
@@ -90,14 +101,16 @@ __global__ void forward_kernel(
                 // correction for us.
                 continue;
             } else if (shift != 0) {
-                output[n][b][c][w][h] +=
+                f_out +=
                     // TODO: Find another way of doing this:
                     // The problem with shift is that it doesn't allow for decimal
                     // points i.e. if max_e = -1, we would have to shift 1 >> 1,
                     // which is always 0.
                     // and pow is a "slow" operation
-                    s >> 31 ? pow(2, ((max_e >> 23) - 127)) : -pow(2, ((max_e >> 23)) - 127);
+                    s >> 31 ? pow(2, (((int32_t)(max_e >> 23)) - 127))
+                            : -pow(2, (((int32_t)(max_e >> 23))) - 127);
             }
+            output[n][b][c][w][h] = f_out;
         }
     }
 }
@@ -109,10 +122,10 @@ std::vector<at::Tensor> bfpactivation_cuda_forward(const torch::Tensor activatio
     const int32_t N = activations.size(0);
     const int32_t B = activations.size(1);
     const int32_t C = activations.size(2);
-    const int32_t H = activations.size(3);
-    const int32_t W = activations.size(4);
+    const int32_t W = activations.size(3);
+    const int32_t H = activations.size(4);
 
-    auto output = torch::zeros({N, B, C, H, W},
+    auto output = torch::zeros({N, B, C, W, H},
                                torch::dtype(activations.dtype()).device(activations.device()));
 
     // Generate some more magic numbers that cant be known at compile time.
@@ -132,6 +145,8 @@ std::vector<at::Tensor> bfpactivation_cuda_forward(const torch::Tensor activatio
                 output.packed_accessor<float, 5, torch::RestrictPtrTraits, size_t>(), m_bits,
                 trunc_num, round_num);
         }));
+    gpuErrchk(cudaDeviceSynchronize());
+    gpuErrchk(cudaPeekAtLastError());
 
     return {output};
 }

@@ -106,6 +106,6 @@ venv.bak/
 
 # Custom ignores
 data*
-.vscode
+.vscode/
 .npy
 core
