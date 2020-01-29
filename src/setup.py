@@ -16,6 +16,7 @@ nvcc_extra_args = [
     "-O2",
     "--gpu-architecture=sm_61",
     "-lineinfo",
+    "-I/home/costain/libs/cub-1.8.0",
 ]
 
 setup(
