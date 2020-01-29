@@ -1,9 +1,9 @@
-// (c) Theo Costain 2019
+// (c) Theo Costain 2020
 #include <torch/extension.h>
 
 #include <vector>
 
-#define MAX_BLOCK_SIZE 32
+#define MAX_BLOCK_SIZE 64
 
 #define SIG_MAGIC_NUM 0x80000000
 #define EXP_MAGIC_NUM 0x7f800000
@@ -12,29 +12,30 @@
 #define LEADING_1 0x00800000
 
 template <typename scalar_t>
-void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t trunc_num,
-             const uint32_t round_num, torch::TensorAccessor<float, 5> output) {
+void forward(const torch::TensorAccessor<float, 4> activations, const uint32_t trunc_num,
+             const uint32_t round_num, torch::TensorAccessor<float, 4> output, int32_t block_size) {
     const int32_t N = activations.size(0);
-    const int32_t B = activations.size(1);
-    const int32_t C = activations.size(2);
-    const int32_t H = activations.size(3);
-    const int32_t W = activations.size(4);
+    const int32_t H = activations.size(1);
+    const int32_t W = activations.size(2);
+    const int32_t C = activations.size(3);
 
-    for (int32_t b = 0; b < B; b++) {
-        for (int32_t n = 0; n < N; n++) {
-            for (int32_t w = 0; w < W; w++) {
-                for (int32_t h = 0; h < H; h++) {
+    for (int32_t n = 0; n < N; n++) {
+        for (int32_t w = 0; w < W; w++) {
+            for (int32_t h = 0; h < H; h++) {
+                for (int32_t b = 0; b < block_size; b++) {
                     uint32_t max_e = 0;
                     uint32_t data[MAX_BLOCK_SIZE]; // Hardcoded limit to block size.
                     // max in neighborhood
-                    for (int32_t c = 0; c < C; c++) {
-                        std::memcpy(&data[c], &activations[n][b][c][w][h], sizeof(uint32_t));
+                    for (int32_t c_block = 0; c_block < C; c_block++) {
+                        int32_t c = c_block + b * block_size;
+                        std::memcpy(&data[c], &activations[n][w][h][c], sizeof(uint32_t));
                         uint32_t e = data[c] & EXP_MAGIC_NUM;
                         if (e > max_e) {
                             max_e = e;
                         }
                     }
-                    for (int32_t c = 0; c < C; c++) {
+                    for (int32_t c_block = 0; c_block < C; c_block++) {
+                        int32_t c = c_block + b * block_size;
                         // Extract the parts of the floating point number
                         uint32_t s = data[c] & SIG_MAGIC_NUM;
                         uint32_t e = data[c] & EXP_MAGIC_NUM;
@@ -84,7 +85,7 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
                                 s >> 31 ? pow(2, (((int32_t)max_e >> 23) - 127))
                                         : -pow(2, (((int32_t)max_e >> 23)) - 127);
                         }
-                        output[n][b][c][w][h] = f_out;
+                        output[n][w][h][c] = f_out;
                     }
                 }
             }
@@ -93,7 +94,7 @@ void forward(const torch::TensorAccessor<float, 5> activations, const uint32_t t
 }
 
 std::vector<torch::Tensor> bfpactivation_forward(const torch::Tensor activations,
-                                                 const int32_t m_bits) {
+                                                 const int32_t m_bits, int32_t block_size) {
 
     auto output = torch::zeros_like(activations);
 
@@ -103,9 +104,10 @@ std::vector<torch::Tensor> bfpactivation_forward(const torch::Tensor activations
     const uint32_t trunc_num = (MAN_MAGIC_NUM >> (23 - (m_bits - 1))) << (23 - (m_bits - 1));
     const uint32_t round_num = ROUND_MAGIC_NUM >> (m_bits - 1);
 
-    AT_DISPATCH_FLOATING_TYPES(activations.type(), "bfpactivation_forward_cpu", ([&] {
-                                   forward<scalar_t>(activations.accessor<float, 5>(), trunc_num,
-                                                     round_num, output.accessor<float, 5>());
+    AT_DISPATCH_FLOATING_TYPES(activations.scalar_type(), "bfpactivation_forward_cpu", ([&] {
+                                   forward<scalar_t>(activations.accessor<float, 4>(), trunc_num,
+                                                     round_num, output.accessor<float, 4>(),
+                                                     block_size);
                                }));
 
     return {output};

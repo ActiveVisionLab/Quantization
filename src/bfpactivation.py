@@ -28,9 +28,11 @@ class BFPActivationFunctionGPU(Function):
 class BFPActivationFunctionCPU(Function):
     @staticmethod
     def forward(ctx, activations, mantissa_bits=3):
+        activations = activations.permute(0, 2, 3, 1).contiguous()
         outputs = bfpactivation_cpu.forward(activations, mantissa_bits)
 
         output = outputs[0]
+        output = output.permute(0, 3, 1, 2).contiguous()
         # ctx.save_for_backward(output, argmax)
 
         return output
