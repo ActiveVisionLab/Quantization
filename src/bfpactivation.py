@@ -10,13 +10,18 @@ from . import bfpactivation_cuda
 
 class BFPActivationFunctionGPU(Function):
     @staticmethod
-    def forward(ctx, activations, mantissa_bits, blk):
+    def forward(ctx, activations, mantissa_bits, blk, permute=True):
         # TODO permute activations to put C in last dim
-        activations = activations.permute(0, 2, 3, 1).contiguous()
-        outputs = bfpactivation_cuda.forward(activations, mantissa_bits, blk)
+        if permute:
+            activations = activations.permute(0, 2, 3, 1).contiguous()
+            outputs = bfpactivation_cuda.forward(activations, mantissa_bits, blk)
 
-        output = outputs[0]
-        output = output.permute(0, 3, 1, 2).contiguous()
+            output = outputs[0]
+            output = output.permute(0, 3, 1, 2).contiguous()
+
+        else:
+            outputs = bfpactivation_cuda.forward(activations, mantissa_bits, blk)
+            output = outputs[0]
 
         return output
 
@@ -27,12 +32,16 @@ class BFPActivationFunctionGPU(Function):
 
 class BFPActivationFunctionCPU(Function):
     @staticmethod
-    def forward(ctx, activations, mantissa_bits, blk):
-        activations = activations.permute(0, 2, 3, 1).contiguous()
-        outputs = bfpactivation_cpu.forward(activations, mantissa_bits, blk)
+    def forward(ctx, activations, mantissa_bits, blk, permute=True):
+        if permute:
+            activations = activations.permute(0, 2, 3, 1).contiguous()
+            outputs = bfpactivation_cpu.forward(activations, mantissa_bits, blk)
 
-        output = outputs[0]
-        output = output.permute(0, 3, 1, 2).contiguous()
+            output = outputs[0]
+            output = output.permute(0, 3, 1, 2).contiguous()
+        else:
+            outputs = bfpactivation_cpu.forward(activations, mantissa_bits, blk)
+            output = outputs[0]
         # ctx.save_for_backward(output, argmax)
 
         return output
@@ -44,11 +53,15 @@ class BFPActivationFunctionCPU(Function):
 
 class BFPActivationFunction(Function):
     @staticmethod
-    def forward(ctx, activations, mantissa_bits, blk):
+    def forward(ctx, activations, mantissa_bits, blk, permute=True):
         if activations.is_cuda:
-            return BFPActivationFunctionGPU.apply(activations, mantissa_bits, blk)
+            return BFPActivationFunctionGPU.apply(
+                activations, mantissa_bits, blk, permute
+            )
         elif not activations.is_cuda:
-            return BFPActivationFunctionCPU.apply(activations, mantissa_bits, blk)
+            return BFPActivationFunctionCPU.apply(
+                activations, mantissa_bits, blk, permute
+            )
         else:
             raise RuntimeError("All tensors not cuda or cpu tensors.")
 
@@ -58,11 +71,12 @@ class BFPActivationFunction(Function):
 
 
 class BFPActivation(nn.Module):
-    def __init__(self, mantissa_bits, blk):
+    def __init__(self, mantissa_bits, blk, permute=True):
         super(BFPActivation, self).__init__()
         self.mantissa_bits = mantissa_bits
         self.blk = blk
         self.bfp = BFPActivationFunction.apply
+        self.permute = permute
 
     def forward(self, activations):
-        return self.bfp(activations, self.mantissa_bits, self.blk)
+        return self.bfp(activations, self.mantissa_bits, self.blk, self.permute)
