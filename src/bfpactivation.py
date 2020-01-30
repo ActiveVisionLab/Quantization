@@ -22,7 +22,7 @@ class BFPActivationFunctionGPU(Function):
 
     @staticmethod
     def backward(ctx, out_gradients):
-        return out_gradients, None
+        return out_gradients, None, None
 
 
 class BFPActivationFunctionCPU(Function):
@@ -39,7 +39,22 @@ class BFPActivationFunctionCPU(Function):
 
     @staticmethod
     def backward(ctx, out_gradients):
-        return out_gradients, None
+        return out_gradients, None, None
+
+
+class BFPActivationFunction(Function):
+    @staticmethod
+    def forward(ctx, activations, mantissa_bits, blk):
+        if activations.is_cuda:
+            return BFPActivationFunctionGPU.apply(activations, mantissa_bits, blk)
+        elif not activations.is_cuda:
+            return BFPActivationFunctionCPU.apply(activations, mantissa_bits, blk)
+        else:
+            raise RuntimeError("All tensors not cuda or cpu tensors.")
+
+    @staticmethod
+    def backward(ctx, out_gradients):
+        return out_gradients, None, None
 
 
 class BFPActivation(nn.Module):
@@ -47,15 +62,7 @@ class BFPActivation(nn.Module):
         super(BFPActivation, self).__init__()
         self.mantissa_bits = mantissa_bits
         self.blk = blk
+        self.bfp = BFPActivationFunction.apply
 
     def forward(self, activations):
-        if activations.is_cuda:
-            return BFPActivationFunctionGPU.apply(
-                activations, self.mantissa_bits, self.blk
-            )
-        elif not activations.is_cuda:
-            return BFPActivationFunctionCPU.apply(
-                activations, self.mantissa_bits, self.blk
-            )
-        else:
-            raise RuntimeError("All tensors not cuda or cpu tensors.")
+        return self.bfp(activations, self.mantissa_bits, self.blk)
