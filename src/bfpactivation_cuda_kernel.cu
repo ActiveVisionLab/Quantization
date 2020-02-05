@@ -118,6 +118,7 @@ forward_kernel(const torch::PackedTensorAccessor32<float, 4, torch::RestrictPtrT
             if ((shift == 1) && (new_m >> 23 == 1)) {
                 // This block catches the error when the rouding does the mantissa
                 // correction for us.
+                output[n][w][h][c] = f_out;
                 continue;
             } else if (shift != 0) {
                 f_out +=
