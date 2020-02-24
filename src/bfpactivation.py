@@ -84,13 +84,13 @@ class BFPActivation(nn.Module):
         self.min = -2 ** (self.exp - 1)
 
     def update_mantissa(self, mantissa):
-        self.mts = mantissa
-        if self.mts is not None:
-            self.min_m = -(2 ** self.mts) + 1
-            self.max_m = (2 ** self.mts) - 1
+        self.mantissa = mantissa
+        if self.mantissa is not None:
+            self.min_m = -(2 ** self.mantissa) + 1
+            self.max_m = (2 ** self.mantissa) - 1
 
     def extra_repr(self):
-        repr_str = "exponent={exp}, mantissa={mts}, block_size={blk}"
+        repr_str = "exponent={exp}, mantissa={mantissa}, block_size={blk}"
         return repr_str.format(**self.__dict__)
 
     def forward(self, activations):
