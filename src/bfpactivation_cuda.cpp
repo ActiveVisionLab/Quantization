@@ -7,7 +7,8 @@
 // CUDA forward declarations
 
 std::vector<torch::Tensor> bfpactivation_cuda_forward(const torch::Tensor features,
-                                                      const int32_t m_bits);
+                                                      const int32_t m_bits,
+                                                      const int32_t block_size);
 // C++ interface
 
 // NOTE: AT_ASSERT has become AT_CHECK on master after 0.4.
@@ -18,10 +19,10 @@ std::vector<torch::Tensor> bfpactivation_cuda_forward(const torch::Tensor featur
     CHECK_CONTIGUOUS(x)
 
 std::vector<torch::Tensor> bfpactivation_forward(const torch::Tensor activations,
-                                                 const int32_t m_bits) {
+                                                 const int32_t m_bits, const int32_t block_size) {
     CHECK_INPUT(activations);
 
-    return bfpactivation_cuda_forward(activations, m_bits);
+    return bfpactivation_cuda_forward(activations, m_bits, block_size);
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {

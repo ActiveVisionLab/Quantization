@@ -1,4 +1,4 @@
-// (c) Theo Costain 2019
+// (c) Theo Costain 2020
 
 // This was not compiling with extension.h on anubis5 with cuda 9. This is supposed to fix it.
 #include <torch/types.h>
@@ -7,9 +7,19 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+#include <cub/cub.cuh>
+
 #include <vector>
 
-#define MAX_BLOCK_SIZE 32
+#define gpuErrchk(ans)                                                                             \
+    { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true) {
+    if (code != cudaSuccess) {
+        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if (abort)
+            exit(code);
+    }
+}
 
 #define SIG_MAGIC_NUM 0x80000000
 #define EXP_MAGIC_NUM 0x7f800000
@@ -17,45 +27,64 @@
 #define ROUND_MAGIC_NUM 0x00400000
 #define LEADING_1 0x00800000
 
-inline int up2(int len, int th) { return (len - 1) / th + 1; };
-
 namespace {
-template <typename scalar_t>
-__global__ void forward_kernel(
-    const torch::PackedTensorAccessor<float, 5, torch::RestrictPtrTraits, size_t> activations,
-    torch::PackedTensorAccessor<float, 5, torch::RestrictPtrTraits, size_t> output,
-    const int32_t m_bits, const uint32_t trunc_num, const uint32_t round_num) {
+template <typename scalar_t, int block_size>
+__global__ void
+forward_kernel(const torch::PackedTensorAccessor32<float, 4, torch::RestrictPtrTraits> activations,
+               torch::PackedTensorAccessor32<float, 4, torch::RestrictPtrTraits> output,
+               const int32_t m_bits, const uint32_t trunc_num, const uint32_t round_num) {
 
-    const int32_t w = threadIdx.x + blockIdx.x * blockDim.x;
-    const int32_t h = threadIdx.y + blockIdx.y * blockDim.y;
-    const int32_t b = blockIdx.z;
+    const int32_t w = blockIdx.x;
+    const int32_t h = blockIdx.y;
+    const int32_t n = blockIdx.z;
+
+    const int32_t c_block = threadIdx.x;
+
+    typedef cub::BlockReduce<uint32_t, block_size> BlockReduce;
+    __shared__ typename BlockReduce::TempStorage temp_storage;
+
+    __shared__ uint32_t max_e;
 
     const int32_t N = activations.size(0);
-    const int32_t B = activations.size(1);
-    const int32_t C = activations.size(2);
-    const int32_t W = activations.size(3);
-    const int32_t H = activations.size(4);
+    const int32_t W = activations.size(1);
+    const int32_t H = activations.size(2);
+    const int32_t C = activations.size(3);
 
-    if ((w >= W) | (h >= H) | (b >= B)) {
+    // Faster integer division round up with overflow minimisation
+    const int32_t blocks = 1 + ((C - 1) / block_size);
+
+    if ((w >= W) | (h >= H) | (n >= N)) {
         return;
     }
 
-    for (int32_t n = 0; n < N; n++) {
-        uint32_t max_e = 0;
-        uint32_t data[MAX_BLOCK_SIZE]; // Hardcoded limit to block size.
-        // max in neighborhood
-        for (int32_t c = 0; c < C; c++) {
-            memcpy(&data[c], &activations[n][b][c][w][h], sizeof(uint32_t));
-            uint32_t e = data[c] & EXP_MAGIC_NUM;
-            if (e > max_e) {
-                max_e = e;
-            }
+    for (int32_t b = 0; b < blocks; b++) {
+
+        int32_t c = c_block + b * block_size;
+
+        uint32_t data = 0;
+        if (c < C) {
+            // load data from gloabal memory
+            memcpy(&data, &activations[n][w][h][c], sizeof(uint32_t));
         }
-        for (int32_t c = 0; c < C; c++) {
+
+        uint32_t e = data & EXP_MAGIC_NUM;
+
+        // Block reduce max
+        uint32_t result = BlockReduce(temp_storage).Reduce(e, cub::Max());
+
+        if (threadIdx.x == 0) {
+            max_e = result;
+        }
+
+        // TODO: investigate whether loading max_e into a thread register rather
+        // than reading from shared mem every time we need it is faster.
+
+        __syncthreads();
+
+        if (c < C) {
             // Extract the parts of the floating point number
-            uint32_t s = data[c] & SIG_MAGIC_NUM;
-            uint32_t e = data[c] & EXP_MAGIC_NUM;
-            uint32_t m = data[c] & MAN_MAGIC_NUM;
+            uint32_t s = data & SIG_MAGIC_NUM;
+            uint32_t m = data & MAN_MAGIC_NUM;
 
             // calculate the required shift
             uint32_t shift = (max_e - e) >> 23;
@@ -89,7 +118,6 @@ __global__ void forward_kernel(
             if ((shift == 1) && (new_m >> 23 == 1)) {
                 // This block catches the error when the rouding does the mantissa
                 // correction for us.
-                continue;
             } else if (shift != 0) {
                 f_out +=
                     // TODO: Find another way of doing this:
@@ -100,23 +128,22 @@ __global__ void forward_kernel(
                     s >> 31 ? pow(2, (((int32_t)(max_e >> 23)) - 127))
                             : -pow(2, (((int32_t)(max_e >> 23))) - 127);
             }
-            output[n][b][c][w][h] = f_out;
+            output[n][w][h][c] = f_out;
         }
     }
 }
 } // namespace
 
 std::vector<at::Tensor> bfpactivation_cuda_forward(const torch::Tensor activations,
-                                                   const int32_t m_bits) {
+                                                   const int32_t m_bits, const int32_t block_size) {
 
     const int32_t N = activations.size(0);
-    const int32_t B = activations.size(1);
-    const int32_t C = activations.size(2);
-    const int32_t W = activations.size(3);
-    const int32_t H = activations.size(4);
+    const int32_t W = activations.size(1);
+    const int32_t H = activations.size(2);
+    const int32_t C = activations.size(3);
 
-    auto output = torch::zeros({N, B, C, W, H},
-                               torch::dtype(activations.dtype()).device(activations.device()));
+    auto output =
+        torch::zeros({N, W, H, C}, torch::dtype(activations.dtype()).device(activations.device()));
 
     // Generate some more magic numbers that cant be known at compile time.
     // The first is the truncation bitmask, and the second is a 1 in the LSB w.r.t.
@@ -124,17 +151,47 @@ std::vector<at::Tensor> bfpactivation_cuda_forward(const torch::Tensor activatio
     const uint32_t trunc_num = (MAN_MAGIC_NUM >> (23 - (m_bits - 1))) << (23 - (m_bits - 1));
     const uint32_t round_num = ROUND_MAGIC_NUM >> (m_bits - 1);
 
-    const int32_t threads = 32;
-    dim3 block(threads, threads, 1);
-    dim3 grid(up2(W, threads), up2(H, threads), B);
+    const int32_t threads = block_size;
+    dim3 block(threads);
+    dim3 grid(W, H, N);
 
-    AT_DISPATCH_FLOATING_TYPES(
-        activations.type(), "bfpactivation_forward_cuda", ([&] {
-            forward_kernel<scalar_t><<<grid, block>>>(
-                activations.packed_accessor<float, 5, torch::RestrictPtrTraits, size_t>(),
-                output.packed_accessor<float, 5, torch::RestrictPtrTraits, size_t>(), m_bits,
-                trunc_num, round_num);
-        }));
+    switch (block_size) {
+    case 16:
+        AT_DISPATCH_FLOATING_TYPES(
+            activations.scalar_type(), "bfpactivation_forward_cuda", ([&] {
+                forward_kernel<scalar_t, 16><<<grid, block>>>(
+                    activations.packed_accessor32<float, 4, torch::RestrictPtrTraits>(),
+                    output.packed_accessor32<float, 4, torch::RestrictPtrTraits>(), m_bits,
+                    trunc_num, round_num);
+            }));
+        gpuErrchk(cudaDeviceSynchronize());
+        gpuErrchk(cudaPeekAtLastError());
+        break;
+    case 32:
+        AT_DISPATCH_FLOATING_TYPES(
+            activations.scalar_type(), "bfpactivation_forward_cuda", ([&] {
+                forward_kernel<scalar_t, 32><<<grid, block>>>(
+                    activations.packed_accessor32<float, 4, torch::RestrictPtrTraits>(),
+                    output.packed_accessor32<float, 4, torch::RestrictPtrTraits>(), m_bits,
+                    trunc_num, round_num);
+            }));
+        gpuErrchk(cudaDeviceSynchronize());
+        gpuErrchk(cudaPeekAtLastError());
+        break;
+    case 64:
+        AT_DISPATCH_FLOATING_TYPES(
+            activations.scalar_type(), "bfpactivation_forward_cuda", ([&] {
+                forward_kernel<scalar_t, 64><<<grid, block>>>(
+                    activations.packed_accessor32<float, 4, torch::RestrictPtrTraits>(),
+                    output.packed_accessor32<float, 4, torch::RestrictPtrTraits>(), m_bits,
+                    trunc_num, round_num);
+            }));
+        gpuErrchk(cudaDeviceSynchronize());
+        gpuErrchk(cudaPeekAtLastError());
+        break;
+    default:
+        throw "Unsupported Block Size for quantisation!";
+    }
 
     return {output};
 }
