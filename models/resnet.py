@@ -274,6 +274,8 @@ class ResNet(QuantizedModule):
 
 class QuantizedResNet18(ResNet):
     number_bits = 17
+    top1 = 69.76
+    top5 = 89.08
     def __init__(self, bits, block_size, pretrained=False, progress=False, **kwargs):
         super(QuantizedResNet18, self).__init__(BasicBlock, [2, 2, 2, 2], bits, self.number_bits, **kwargs)
         if pretrained:
@@ -293,7 +295,7 @@ class QuantizedResNet34(ResNet):
 
 
 class QuantizedResNet50(ResNet):
-    number_bits = 53
+    number_bits = 49
     top1 = 76.15
     top5 = 92.87
     def __init__(self, bits, block_size, pretrained=False, progress=False, **kwargs):
