@@ -79,7 +79,7 @@ class BasicBlock(nn.Module):
         self.conv1 = conv3x3(inplanes, planes, block_size, bit, stride)
 
         bit = bits.pop(0)
-        self.activation1 = BFPActivation(bit, 7, block_size)
+        self.activation1 = BFPActivation(bit, block_size)
         self.bn1 = norm_layer(planes)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes, block_size, bit)
@@ -88,7 +88,7 @@ class BasicBlock(nn.Module):
             self.seq = self.relu
         else:
             bit = bits[0]
-            self.activation2 = BFPActivation(bit, 7, block_size)
+            self.activation2 = BFPActivation(bit, block_size)
             self.seq = nn.Sequential(self.relu, self.activation2)
         self.bn2 = norm_layer(planes)
         self.downsample = downsample
@@ -145,12 +145,12 @@ class Bottleneck(nn.Module):
         self.conv1 = conv1x1(inplanes, width, block_size, bit)
 
         bit = bits.pop(0)
-        self.activation1 = BFPActivation(bit, 7, block_size)
+        self.activation1 = BFPActivation(bit, block_size)
         self.bn1 = norm_layer(width)
         self.conv2 = conv3x3(width, width, block_size, bit, stride, groups, dilation)
 
         bit = bits.pop(0)
-        self.activation2 = BFPActivation(bit, 7, block_size)
+        self.activation2 = BFPActivation(bit, block_size)
         self.bn2 = norm_layer(width)
         self.conv3 = conv1x1(width, planes * self.expansion, block_size, bit)
         self.bn3 = norm_layer(planes * self.expansion)
@@ -160,7 +160,7 @@ class Bottleneck(nn.Module):
             self.seq = self.relu
         else:
             bit = bits[0]
-            self.activation3 = BFPActivation(bit, 7, block_size)
+            self.activation3 = BFPActivation(bit, block_size)
             self.seq = nn.Sequential(self.relu, self.activation2)
 
         self.downsample = downsample
@@ -240,7 +240,7 @@ class ResNet(QuantizedModule):
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         bit = self.bits[0]
-        self.activation1 = BFPActivation(bit, 7, blk=32)
+        self.activation1 = BFPActivation(bit, 32)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(

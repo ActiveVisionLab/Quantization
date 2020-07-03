@@ -32,6 +32,7 @@ class DSConv2d(_ConvNd):
         super(DSConv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding,
                                        dilation, False, _pair(0), groups, bias, padding_mode)
         self.nmb_blk = math.ceil(((in_channels)/(block_size*groups)))
+        self.groups = groups
         self.blk = block_size
 
         # If bit is None, then the layer should be FP32
@@ -39,7 +40,7 @@ class DSConv2d(_ConvNd):
         
         self.alpha = torch.Tensor(out_channels, self.nmb_blk, *kernel_size)
         self.intw = torch.Tensor(self.weight.size())
-        self.quant_w = torch.Tensor(out_channels, in_channels, *kernel_size)
+        self.quant_w = torch.Tensor(out_channels, in_channels//groups, *kernel_size)
 
         self.__quantize__ = DSConvQuant.apply
 

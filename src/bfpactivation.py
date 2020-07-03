@@ -69,7 +69,7 @@ class BFPActivationFunction(Function):
 
     @staticmethod
     def backward(ctx, out_gradients):
-        return out_gradients, None, None
+        return out_gradients, None, None, None
 
 
 class BFPActivation(nn.Module):
