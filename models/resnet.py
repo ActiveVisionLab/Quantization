@@ -5,10 +5,13 @@ ResNet module adapted from the original pytorch file in order to use DSConv
 import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
+import sys
 
-from ..DSConv.nn.dsconv2d import DSConv2d
-from ..src.bfpactivation import BFPActivation
-from ..DSConv.nn.quantized_module import QuantizedModule
+sys.path.append("..")
+
+from DSConv.nn.dsconv2d import DSConv2d
+from src.bfpactivation import BFPActivation
+from DSConv.nn.quantized_module import QuantizedModule
 
 model_urls = {
     "resnet18": "https://download.pytorch.org/models/resnet18-5c106cde.pth",
