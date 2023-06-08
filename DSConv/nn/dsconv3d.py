@@ -28,8 +28,8 @@ class DSConv3d(_ConvNd):
         in_channels,
         out_channels,
         kernel_size,
-        block_size,
         bit,
+        block_size=32,
         stride=1,
         padding=0,
         dilation=1,
@@ -37,7 +37,6 @@ class DSConv3d(_ConvNd):
         bias=False,
         padding_mode="zeros",
     ):
-
         kernel_size = _triple(kernel_size)
         stride = _triple(stride)
         padding = _triple(padding)
