@@ -6,23 +6,23 @@ from torch import nn
 from torch.autograd import Function
 import math
 
-from . import bfpactivation_cpu
-from . import bfpactivation_cuda
+from . import bfpactivation3d_cpu
+from . import bfpactivation3d_cuda
 
 
-class BFPActivationFunctionGPU(Function):
+class BFPActivationFunction3DGPU(Function):
     @staticmethod
     def forward(ctx, activations, mantissa_bits, blk, permute=True):
         # TODO permute activations to put C in last dim
         if permute:
-            activations = activations.permute(0, 2, 3, 1).contiguous()
-            outputs = bfpactivation_cuda.forward(activations, mantissa_bits, blk)
+            activations = activations.permute(0, 2, 3, 4, 1).contiguous()
+            outputs = bfpactivation3d_cuda.forward(activations, mantissa_bits, blk)
 
             output = outputs[0]
-            output = output.permute(0, 3, 1, 2).contiguous()
+            output = output.permute(0, 4, 1, 2, 3).contiguous()
 
         else:
-            outputs = bfpactivation_cuda.forward(activations, mantissa_bits, blk)
+            outputs = bfpactivation3d_cuda.forward(activations, mantissa_bits, blk)
             output = outputs[0]
 
         return output
@@ -32,17 +32,17 @@ class BFPActivationFunctionGPU(Function):
         return out_gradients, None, None
 
 
-class BFPActivationFunctionCPU(Function):
+class BFPActivationFunction3DCPU(Function):
     @staticmethod
     def forward(ctx, activations, mantissa_bits, blk, permute=True):
         if permute:
-            activations = activations.permute(0, 2, 3, 1).contiguous()
-            outputs = bfpactivation_cpu.forward(activations, mantissa_bits, blk)
+            activations = activations.permute(0, 2, 3, 4, 1).contiguous()
+            outputs = bfpactivation3d_cpu.forward(activations, mantissa_bits, blk)
 
             output = outputs[0]
-            output = output.permute(0, 3, 1, 2).contiguous()
+            output = output.permute(0, 4, 1, 2, 3).contiguous()
         else:
-            outputs = bfpactivation_cpu.forward(activations, mantissa_bits, blk)
+            outputs = bfpactivation3d_cpu.forward(activations, mantissa_bits, blk)
             output = outputs[0]
         # ctx.save_for_backward(output, argmax)
 
@@ -53,15 +53,15 @@ class BFPActivationFunctionCPU(Function):
         return out_gradients, None, None
 
 
-class BFPActivationFunction(Function):
+class BFPActivationFunction3D(Function):
     @staticmethod
     def forward(ctx, activations, mantissa_bits, blk, permute=True):
         if activations.is_cuda:
-            return BFPActivationFunctionGPU.apply(
+            return BFPActivationFunction3DGPU.apply(
                 activations, mantissa_bits, blk, permute
             )
         elif not activations.is_cuda:
-            return BFPActivationFunctionCPU.apply(
+            return BFPActivationFunction3DCPU.apply(
                 activations, mantissa_bits, blk, permute
             )
         else:
@@ -72,12 +72,12 @@ class BFPActivationFunction(Function):
         return out_gradients, None, None, None
 
 
-class BFPActivation(nn.Module):
+class BFPActivation3D(nn.Module):
     def __init__(self, mantissa, blk, permute=True):
-        super(BFPActivation, self).__init__()
+        super().__init__()
         self.update_mantissa(mantissa)
         self.blk = blk
-        self.bfp = BFPActivationFunction.apply
+        self.bfp = BFPActivationFunction3D.apply
         self.permute = permute
         self.exp = 7
         self.max = 2 ** (self.exp - 1) - 1

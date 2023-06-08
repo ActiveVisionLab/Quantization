@@ -1,5 +1,5 @@
-from DSConv.nn.bfp_quantization import BFPActivationLegacy
-from src.bfpactivation import BFPActivation
+from DSConv.nn.bfp_quantization import BFPActivation3DLegacy
+from src.bfpactivation3d import BFPActivation3D
 import torch
 import numpy as np
 from os import environ as env
@@ -17,20 +17,23 @@ if __name__ == "__main__":
     channel = 96
     width = 3
     height = 3
+    depth = 3
 
-    func_act = BFPActivationLegacy(3, 7, block_size)
-    theo_activation = BFPActivation(3, block_size)
-    act = torch.randn((batch_size, channel, width, height))
+    func_act = BFPActivation3DLegacy(3, 7, block_size)
+    theo_activation = BFPActivation3D(3, block_size)
+    act = torch.randn((batch_size, channel, width, height, depth))
 
     sol = func_act(act)  # , -127, 128, 3, -7, 7)
     sol_theo = theo_activation(act.cuda()).cpu()
 
     x = PrettyTable()
     col_names = ["orig", "cpp", "pytorch", "error"]
-    x.add_column(col_names[0], act[0, :, 0, 0].numpy())
-    x.add_column(col_names[1], sol_theo[0, :, 0, 0].numpy())
-    x.add_column(col_names[2], sol[0, :, 0, 0].numpy())
-    x.add_column(col_names[3], sol_theo[0, :, 0, 0].numpy() - sol[0, :, 0, 0].numpy())
+    x.add_column(col_names[0], act[0, :, 0, 0, 0].numpy())
+    x.add_column(col_names[1], sol_theo[0, :, 0, 0, 0].numpy())
+    x.add_column(col_names[2], sol[0, :, 0, 0, 0].numpy())
+    x.add_column(
+        col_names[3], sol_theo[0, :, 0, 0, 0].numpy() - sol[0, :, 0, 0, 0].numpy()
+    )
 
     print(x)
 

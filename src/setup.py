@@ -46,3 +46,28 @@ setup(
     ],
     cmdclass={"build_ext": BuildExtension},
 )
+
+setup(
+    name="bfpactivation3d_cpu",
+    ext_modules=[
+        CppExtension(
+            "bfpactivation3d_cpu",
+            sources=["bfpactivation3d_cpu.cpp"],
+            extra_compile_args=flags,
+        )
+    ],
+    extra_compile_args=extra_compile_args,
+    cmdclass={"build_ext": BuildExtension},
+)
+
+setup(
+    name="bfpactivation3d_cuda",
+    ext_modules=[
+        CUDAExtension(
+            "bfpactivation3d_cuda",
+            sources=["bfpactivation3d_cuda.cpp", "bfpactivation3d_cuda_kernel.cu"],
+            extra_compile_args={"cxx": flags, "nvcc": flags + nvcc_extra_args},
+        )
+    ],
+    cmdclass={"build_ext": BuildExtension},
+)

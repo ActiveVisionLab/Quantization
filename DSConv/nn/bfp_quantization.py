@@ -20,7 +20,7 @@ class BFPActivationLegacy(nn.Module):
         self.update_mantissa(mantissa)
         self.blk = blk
         self.max = 2 ** (self.exp - 1) - 1
-        self.min = -2 ** (self.exp - 1)
+        self.min = -(2 ** (self.exp - 1))
 
         self.__quantize__ = BFPQuant.apply
 
@@ -57,6 +57,60 @@ class BFPActivationLegacy(nn.Module):
             inp, self.min, self.max, self.mts, self.min_m, self.max_m
         )
         inp = torch.reshape(inp, (1, shp[0], shp[1] + pad_val, shp[2], shp[3]))
+
+        inp = inp[0, : shp[0], : shp[1], ...]
+        return inp
+
+
+class BFPActivation3DLegacy(nn.Module):
+    """
+    Activation module that transforms normal tensor to BFP with block size of blk
+    This is legacy as this will (hopefully) run slower than theo's version.
+    """
+
+    def __init__(self, mantissa, exponent, blk):
+        super().__init__()
+        self.exp = exponent
+        self.update_mantissa(mantissa)
+        self.blk = blk
+        self.max = 2 ** (self.exp - 1) - 1
+        self.min = -(2 ** (self.exp - 1))
+
+        self.__quantize__ = BFPQuant.apply
+
+    def extra_repr(self):
+        repr_str = "exponent={exp}, mantissa={mts}, block_size={blk}"
+        return repr_str.format(**self.__dict__)
+
+    def update_mantissa(self, mantissa):
+        self.mts = mantissa
+        if self.mts is not None:
+            self.min_m = -(2 ** self.mts) + 1
+            self.max_m = (2 ** self.mts) - 1
+
+    def forward(self, inp):
+        # if bit is None, then use FP32
+        if self.mts is None:
+            return inp
+
+        shp = inp.shape
+        number_of_blocks = math.ceil(shp[1] / self.blk)
+        pad_val = 0
+
+        # Make sure that the tensor is a multiple of self.blk depthwise by adding a zero padding
+        if shp[1] % self.blk != 0:
+            pad_val = abs(shp[1] - number_of_blocks * self.blk)
+            pad = torch.zeros(shp[0], pad_val, *shp[2:])
+            inp = torch.cat((inp, pad), dim=1)
+
+        # Now we are sure that the inp tensor has a multiple of 32 in the depthwise axis
+        inp = torch.unsqueeze(inp, 0)
+        inp = torch.reshape(inp, (number_of_blocks, shp[0], self.blk, *shp[2:]))
+
+        inp = self.__quantize__(
+            inp, self.min, self.max, self.mts, self.min_m, self.max_m
+        )
+        inp = torch.reshape(inp, (1, shp[0], shp[1] + pad_val, *shp[2:]))
 
         inp = inp[0, : shp[0], : shp[1], ...]
         return inp
