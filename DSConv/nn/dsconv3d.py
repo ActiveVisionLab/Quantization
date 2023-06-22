@@ -28,7 +28,7 @@ class DSConv3d(_ConvNd):
         in_channels,
         out_channels,
         kernel_size,
-        bit,
+        bit: int,
         block_size=32,
         stride=1,
         padding=0,
